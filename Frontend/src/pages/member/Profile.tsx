@@ -10,6 +10,15 @@ const Profile: React.FC = () => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+  const handleUpdatePassword = async () => {
+    setIsUpdatingPassword(true);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setIsUpdatingPassword(false);
+    setShowPasswordModal(false);
+  };
+
   const handleSave = async () => {
     setIsLoading(true);
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -117,8 +126,13 @@ const Profile: React.FC = () => {
                     />
                   </div>
                 </div>
-                <button className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20">
-                  Perbarui Password
+                <button 
+                  onClick={handleUpdatePassword}
+                  disabled={isUpdatingPassword}
+                  className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 disabled:opacity-70 flex items-center justify-center gap-2"
+                >
+                  {isUpdatingPassword && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  {isUpdatingPassword ? 'Memproses...' : 'Perbarui Password'}
                 </button>
               </div>
             </motion.div>

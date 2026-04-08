@@ -8,6 +8,18 @@ const Savings: React.FC = () => {
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
 
+  const [depositAmount, setDepositAmount] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleDeposit = async () => {
+    if (!depositAmount) return;
+    setIsSubmitting(true);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setIsSubmitting(false);
+    setShowDepositModal(false);
+    setDepositAmount('');
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -65,6 +77,8 @@ const Savings: React.FC = () => {
                     <input 
                       type="number" 
                       placeholder="Contoh: 100000" 
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
                       className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
                     />
                   </div>
@@ -74,8 +88,13 @@ const Savings: React.FC = () => {
                     * Setoran simpanan sukarela akan dipotong melalui bendahara gaji pada bulan berikutnya.
                   </p>
                 </div>
-                <button className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20">
-                  Konfirmasi Setoran
+                <button 
+                  onClick={handleDeposit}
+                  disabled={isSubmitting || !depositAmount}
+                  className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 disabled:opacity-70 flex items-center justify-center gap-2"
+                >
+                  {isSubmitting && <RefreshCw size={18} className="animate-spin" />}
+                  {isSubmitting ? 'Memproses...' : 'Konfirmasi Setoran'}
                 </button>
               </div>
             </motion.div>
