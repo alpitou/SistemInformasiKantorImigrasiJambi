@@ -367,11 +367,11 @@ const FinancialManagement: React.FC = () => {
             </button>
           </div>
 
-          <div className="glass-card p-6 rounded-3xl bg-imigrasi-primary text-white border-none">
-            <h4 className="font-bold mb-2">Target Keuangan 2026</h4>
-            <p className="text-xs text-white/60 mb-4">Pencapaian target simpanan anggota tahun ini.</p>
+          <div className="glass-card p-6 rounded-3xl bg-imigrasi-primary text-white border-none shadow-xl shadow-imigrasi-primary/20">
+            <h4 className="font-bold mb-2 text-imigrasi-accent">Target Keuangan 2026</h4>
+            <p className="text-xs text-white/90 mb-4 font-medium">Pencapaian target simpanan anggota tahun ini.</p>
             <div className="space-y-2">
-              <div className="flex justify-between text-[10px] font-bold">
+              <div className="flex justify-between text-[10px] font-bold text-imigrasi-accent">
                 <span>Rp 1.5M / Rp 2M</span>
                 <span>75%</span>
               </div>

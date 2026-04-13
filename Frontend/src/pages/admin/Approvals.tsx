@@ -1,11 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, CheckCircle2, XCircle, Clock, Search, Filter, RefreshCw, User, HandCoins, Wallet, ArrowDownRight, Info, Phone } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, XCircle, Clock, Search, Filter, RefreshCw, User, HandCoins, Wallet, ArrowDownRight, Info, Phone, Send, CreditCard } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useAuth } from '../../hooks/useAuth';
 import { adminService } from '../../services/api';
+import { cn } from '../../lib/utils';
+
+interface ApprovalRequest {
+  id: string;
+  name: string;
+  phone: string;
+  type: string;
+  amount: number;
+  date: string;
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Transferring' | 'Completed';
+  currentStep: 'Treasurer' | 'Chairman' | 'Transfer';
+  avatar: string;
+}
 
 const ApprovalsPage: React.FC = () => {
   const { addNotification } = useNotifications();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
 
@@ -17,28 +32,53 @@ const ApprovalsPage: React.FC = () => {
     }).format(amount);
   };
 
-  const [requests, setRequests] = useState([
-    { id: 'PJ-2026-001', name: 'Agus Setiawan', phone: '081234567890', type: 'Pinjaman', amount: 15000000, date: '2026-04-01', status: 'Pending', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Agus' },
-    { id: 'PJ-2026-002', name: 'Linda Permata', phone: '082345678901', type: 'Pinjaman', amount: 5000000, date: '2026-04-02', status: 'Pending', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Linda' },
-    { id: 'TR-2026-001', name: 'Rudi Hartono', phone: '083456789012', type: 'Penarikan Sukarela', amount: 2000000, date: '2026-04-03', status: 'Pending', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rudi' },
-    { id: 'PJ-2026-003', name: 'Budi Santoso', phone: '084567890123', type: 'Pinjaman', amount: 10000000, date: '2026-04-04', status: 'Approved', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Budi' },
+  const [requests, setRequests] = useState<ApprovalRequest[]>([
+    { id: 'PJ-2026-001', name: 'Agus Setiawan', phone: '081234567890', type: 'Pinjaman', amount: 15000000, date: '2026-04-01', status: 'Pending', currentStep: 'Treasurer', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Agus' },
+    { id: 'PJ-2026-002', name: 'Linda Permata', phone: '082345678901', type: 'Pinjaman', amount: 5000000, date: '2026-04-02', status: 'Pending', currentStep: 'Treasurer', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Linda' },
+    { id: 'TR-2026-001', name: 'Rudi Hartono', phone: '083456789012', type: 'Penarikan Sukarela', amount: 2000000, date: '2026-04-03', status: 'Pending', currentStep: 'Treasurer', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rudi' },
+    { id: 'PJ-2026-003', name: 'Budi Santoso', phone: '084567890123', type: 'Pinjaman', amount: 10000000, date: '2026-04-04', status: 'Completed', currentStep: 'Transfer', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Budi' },
   ]);
 
-  const handleApprove = (id: string) => {
+  const handleTreasurerApprove = (id: string) => {
     const request = requests.find(r => r.id === id);
     if (!request) return;
 
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Approved' } : r));
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, currentStep: 'Chairman' } : r));
     
-    // Notify member
     addNotification({
-      title: 'Pengajuan Disetujui',
-      message: `Pengajuan ${request.type} (${request.id}) Anda telah disetujui.`,
+      title: 'Diteruskan ke Ketua',
+      message: `Pengajuan ${request.id} telah disetujui Bendahara dan diteruskan ke Ketua.`,
+      type: 'info'
+    });
+  };
+
+  const handleChairmanApprove = (id: string) => {
+    const request = requests.find(r => r.id === id);
+    if (!request) return;
+
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, currentStep: 'Transfer', status: 'Approved' } : r));
+    
+    addNotification({
+      title: 'Disetujui Ketua',
+      message: `Pengajuan ${request.id} telah disetujui Ketua. Menunggu transfer dana oleh Bendahara.`,
+      type: 'success'
+    });
+  };
+
+  const handleTransferFunds = (id: string) => {
+    const request = requests.find(r => r.id === id);
+    if (!request) return;
+
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Completed' } : r));
+    
+    addNotification({
+      title: 'Dana Ditransfer',
+      message: `Dana untuk pengajuan ${request.id} telah ditransfer ke anggota.`,
       type: 'success'
     });
 
-    // Simulate WhatsApp Notification
-    console.log(`Sending WhatsApp to ${request.phone}: Halo ${request.name}, pengajuan ${request.type} Anda sebesar ${formatCurrency(request.amount)} telah disetujui.`);
+    // Notify member via WhatsApp (Simulated)
+    console.log(`WhatsApp to ${request.phone}: Dana pinjaman Anda sebesar ${formatCurrency(request.amount)} telah ditransfer.`);
   };
 
   const handleReject = (id: string) => {
@@ -46,14 +86,33 @@ const ApprovalsPage: React.FC = () => {
     
     addNotification({
       title: 'Pengajuan Ditolak',
-      message: `Mohon maaf, pengajuan Anda dengan ID ${id} ditolak. Silakan hubungi admin.`,
+      message: `Pengajuan ID ${id} telah ditolak.`,
       type: 'error'
     });
   };
 
-  const filteredRequests = requests.filter(r => 
-    activeTab === 'all' ? true : r.status.toLowerCase() === activeTab.toLowerCase()
-  );
+  const filteredRequests = requests.filter(r => {
+    if (activeTab === 'all') return true;
+    if (activeTab === 'pending') return r.status === 'Pending' || r.status === 'Approved';
+    return r.status.toLowerCase() === activeTab.toLowerCase();
+  });
+
+  const canApprove = (req: ApprovalRequest) => {
+    if (user?.role === 'treasurer' && req.currentStep === 'Treasurer' && req.status === 'Pending') return true;
+    if (user?.role === 'chairman' && req.currentStep === 'Chairman' && req.status === 'Pending') return true;
+    if (user?.role === 'treasurer' && req.currentStep === 'Transfer' && req.status === 'Approved') return true;
+    if (user?.role === 'admin') return true; // Super admin can do everything
+    return false;
+  };
+
+  const getStepLabel = (req: ApprovalRequest) => {
+    if (req.status === 'Rejected') return 'Ditolak';
+    if (req.status === 'Completed') return 'Selesai';
+    if (req.currentStep === 'Treasurer' && req.status === 'Pending') return 'Menunggu Bendahara';
+    if (req.currentStep === 'Chairman') return 'Menunggu Ketua';
+    if (req.currentStep === 'Transfer' && req.status === 'Approved') return 'Siap Transfer';
+    return req.status;
+  };
 
   return (
     <motion.div 
@@ -119,37 +178,76 @@ const ApprovalsPage: React.FC = () => {
                 </div>
 
                 <div className="mt-6 pt-6 border-t border-gray-100 dark:border-neutral-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <div className="flex items-center gap-1.5">
-                        <Clock size={14} />
-                        <span>Diajukan: {req.date}</span>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <div className="flex items-center gap-1.5">
+                          <Clock size={14} />
+                          <span>Diajukan: {req.date}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Phone size={14} />
+                          <span>{req.phone}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <Phone size={14} />
-                        <span>{req.phone}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status:</span>
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider",
+                          req.status === 'Completed' ? "bg-green-100 text-green-700" : 
+                          req.status === 'Rejected' ? "bg-red-100 text-red-700" : 
+                          "bg-amber-100 text-amber-700"
+                        )}>
+                          {getStepLabel(req)}
+                        </span>
                       </div>
                     </div>
                     
-                    {req.status === 'Pending' ? (
+                    {(req.status === 'Pending' || req.status === 'Approved') && req.status !== 'Completed' ? (
                       <div className="flex items-center gap-2">
-                        <button 
-                          onClick={() => handleReject(req.id)}
-                          className="flex-1 sm:flex-none px-6 py-2 bg-red-500/10 text-red-600 rounded-xl text-xs font-bold hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
-                        >
-                          <XCircle size={14} /> Tolak
-                        </button>
-                        <button 
-                          onClick={() => handleApprove(req.id)}
-                          className="flex-1 sm:flex-none px-6 py-2 bg-green-500 text-white rounded-xl text-xs font-bold hover:bg-green-600 transition-all shadow-lg shadow-green-500/20 flex items-center justify-center gap-2"
-                        >
-                          <CheckCircle2 size={14} /> Setujui
-                        </button>
+                        {canApprove(req) ? (
+                          <>
+                            <button 
+                              onClick={() => handleReject(req.id)}
+                              className="flex-1 sm:flex-none px-6 py-2 bg-red-500/10 text-red-600 rounded-xl text-xs font-bold hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                            >
+                              <XCircle size={14} /> Tolak
+                            </button>
+                            {req.currentStep === 'Treasurer' && req.status === 'Pending' && (
+                              <button 
+                                onClick={() => handleTreasurerApprove(req.id)}
+                                className="flex-1 sm:flex-none px-6 py-2 bg-imigrasi-primary text-white rounded-xl text-xs font-bold hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 flex items-center justify-center gap-2"
+                              >
+                                <Send size={14} /> Teruskan ke Ketua
+                              </button>
+                            )}
+                            {req.currentStep === 'Chairman' && req.status === 'Pending' && (
+                              <button 
+                                onClick={() => handleChairmanApprove(req.id)}
+                                className="flex-1 sm:flex-none px-6 py-2 bg-green-500 text-white rounded-xl text-xs font-bold hover:bg-green-600 transition-all shadow-lg shadow-green-500/20 flex items-center justify-center gap-2"
+                              >
+                                <CheckCircle2 size={14} /> Setujui (Ketua)
+                              </button>
+                            )}
+                            {req.currentStep === 'Transfer' && req.status === 'Approved' && (
+                              <button 
+                                onClick={() => handleTransferFunds(req.id)}
+                                className="flex-1 sm:flex-none px-6 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                              >
+                                <CreditCard size={14} /> Transfer Dana
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-[10px] font-bold text-gray-400 italic bg-gray-50 dark:bg-neutral-800 px-4 py-2 rounded-xl">
+                            {user?.role === 'secretary' ? 'Hanya Lihat' : 'Menunggu Tahap Selanjutnya'}
+                          </div>
+                        )}
                       </div>
                   ) : (
                     <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      req.status === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      req.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                     }`}>
-                      {req.status === 'Approved' ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                      {req.status === 'Completed' ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
                       {req.status}
                     </div>
                   )}

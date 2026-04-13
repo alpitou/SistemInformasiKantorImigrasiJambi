@@ -8,7 +8,10 @@ export const DUMMY_USER: User = {
   unitKerja: 'Seksi Izin Tinggal Keimigrasian',
   role: 'member',
   status: 'Aktif',
-  avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Budi'
+  avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Budi',
+  bankName: 'Bank Mandiri',
+  bankAccountName: 'Budi Santoso',
+  bankAccountNumber: '1234567890'
 };
 
 export const DUMMY_ADMIN: User = {
@@ -20,6 +23,39 @@ export const DUMMY_ADMIN: User = {
   role: 'admin',
   status: 'Aktif',
   avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Siti'
+};
+
+export const DUMMY_SECRETARY: User = {
+  id: 'SEC001',
+  name: 'Hendra Wijaya',
+  nip: '198203152008011003',
+  nik: '1571012233445566',
+  unitKerja: 'Sekretariat',
+  role: 'secretary',
+  status: 'Aktif',
+  avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hendra'
+};
+
+export const DUMMY_TREASURER: User = {
+  id: 'TRE001',
+  name: 'Dewi Lestari',
+  nip: '198005202006042001',
+  nik: '1571017788990011',
+  unitKerja: 'Bendahara',
+  role: 'treasurer',
+  status: 'Aktif',
+  avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Dewi'
+};
+
+export const DUMMY_CHAIRMAN: User = {
+  id: 'CHA001',
+  name: 'Drs. M. Yusuf',
+  nip: '197001011995031001',
+  nik: '1571011122334455',
+  unitKerja: 'Ketua Koperasi',
+  role: 'chairman',
+  status: 'Aktif',
+  avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Yusuf'
 };
 
 export const DUMMY_SAVINGS: Savings = {

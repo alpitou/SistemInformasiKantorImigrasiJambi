@@ -1,22 +1,34 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Wallet, TrendingUp, PieChart, ArrowUpRight, ArrowDownRight, Download, Info, Calendar, RefreshCw, X } from 'lucide-react';
+import { Wallet, TrendingUp, PieChart, ArrowUpRight, ArrowDownRight, Download, Info, Calendar, RefreshCw, X, CheckCircle2 } from 'lucide-react';
 import { DUMMY_SAVINGS, DUMMY_TRANSACTIONS } from '../../constants';
+import { useNotifications } from '../../hooks/useNotifications';
+import { cn } from '../../lib/utils';
 
 const Savings: React.FC = () => {
+  const { addNotification } = useNotifications();
   const [isLoading, setIsLoading] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
 
   const [depositAmount, setDepositAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasUploadedProof, setHasUploadedProof] = useState(false);
 
   const handleDeposit = async () => {
-    if (!depositAmount) return;
+    if (!depositAmount || !hasUploadedProof) return;
     setIsSubmitting(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
     setIsSubmitting(false);
     setShowDepositModal(false);
+    setHasUploadedProof(false);
+    
+    addNotification({
+      title: 'Setoran Berhasil',
+      message: `Setoran simpanan sukarela sebesar ${formatCurrency(Number(depositAmount))} telah dicatat dan menunggu verifikasi bendahara.`,
+      type: 'success'
+    });
+    
     setDepositAmount('');
   };
 
@@ -83,14 +95,40 @@ const Savings: React.FC = () => {
                     />
                   </div>
                 </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Upload Bukti Transfer</label>
+                    <div 
+                      onClick={() => setHasUploadedProof(true)}
+                      className={cn(
+                        "w-full p-8 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all",
+                        hasUploadedProof 
+                        ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-600" 
+                        : "bg-gray-50 dark:bg-neutral-700 border-gray-200 dark:border-neutral-600 text-gray-400 hover:border-imigrasi-accent hover:text-imigrasi-primary"
+                      )}
+                    >
+                      {hasUploadedProof ? (
+                        <>
+                          <CheckCircle2 size={32} />
+                          <span className="text-xs font-bold">Bukti Transfer Berhasil Diunggah</span>
+                        </>
+                      ) : (
+                        <>
+                          <ArrowUpRight size={32} />
+                          <span className="text-xs font-bold">Klik untuk Unggah Bukti Transfer</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-900/30">
                   <p className="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
-                    * Setoran simpanan sukarela akan dipotong melalui bendahara gaji pada bulan berikutnya.
+                    * Setoran simpanan sukarela memerlukan verifikasi manual oleh bendahara setelah bukti transfer diunggah.
                   </p>
                 </div>
                 <button 
                   onClick={handleDeposit}
-                  disabled={isSubmitting || !depositAmount}
+                  disabled={isSubmitting || !depositAmount || !hasUploadedProof}
                   className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                   {isSubmitting && <RefreshCw size={18} className="animate-spin" />}

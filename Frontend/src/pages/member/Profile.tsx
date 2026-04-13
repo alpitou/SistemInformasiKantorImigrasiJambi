@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, Mail, Phone, MapPin, Briefcase, Shield, Camera, Save, Lock, Smartphone, ArrowRight, X, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Briefcase, Shield, Camera, Save, Lock, Smartphone, ArrowRight, X, Eye, EyeOff, CreditCard } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 const Profile: React.FC = () => {
@@ -253,6 +253,48 @@ const Profile: React.FC = () => {
                   disabled={!isEditing}
                   className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60 resize-none"
                 />
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-gray-100 dark:border-neutral-700">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-6 uppercase tracking-widest">Data Rekening Bank</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nama Bank</label>
+                  <div className="relative">
+                    <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input 
+                      type="text" 
+                      defaultValue={user.bankName || 'Bank Mandiri'}
+                      disabled={!isEditing}
+                      className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nomor Rekening</label>
+                  <div className="relative">
+                    <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input 
+                      type="text" 
+                      defaultValue={user.bankAccountNumber || '1234567890'}
+                      disabled={!isEditing}
+                      className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
+                    />
+                  </div>
+                </div>
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nama Pemilik Rekening</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input 
+                      type="text" 
+                      defaultValue={user.bankAccountName || user.name}
+                      disabled={!isEditing}
+                      className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>

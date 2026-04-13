@@ -325,9 +325,6 @@ const MemberDashboard: React.FC = () => {
                 <span className="font-mono font-bold text-imigrasi-accent">{DUMMY_USER.id}</span>
               </div>
             </div>
-            <button className="w-full mt-6 py-3 bg-imigrasi-accent text-imigrasi-primary font-bold rounded-xl hover:bg-white transition-colors">
-              Edit Profil
-            </button>
           </motion.div>
 
           <motion.div variants={itemVariants} className="glass-card rounded-3xl p-6">

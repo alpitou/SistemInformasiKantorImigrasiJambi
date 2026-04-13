@@ -33,7 +33,6 @@ const Settings: React.FC = () => {
   const tabs = [
     { id: 'general', label: 'Umum', icon: Building },
     { id: 'security', label: 'Keamanan', icon: Shield },
-    { id: 'notifications', label: 'Notifikasi', icon: Bell },
     { id: 'financial', label: 'Keuangan', icon: CreditCard },
   ];
 
@@ -141,68 +140,6 @@ const Settings: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'notifications' && (
-            <div className="glass-card p-8 rounded-[2.5rem] space-y-8">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Pengaturan Notifikasi</h3>
-              <div className="space-y-6">
-                <div className="flex items-center justify-between p-6 bg-gray-50 dark:bg-neutral-700/30 rounded-3xl">
-                  <div>
-                    <h4 className="font-bold text-gray-900 dark:text-white">Notifikasi WhatsApp</h4>
-                    <p className="text-xs text-gray-500 mt-1">Kirim pemberitahuan transaksi melalui WhatsApp.</p>
-                  </div>
-                  <button 
-                    onClick={() => setNotifSettings(prev => ({ ...prev, whatsapp: !prev.whatsapp }))}
-                    className={cn(
-                      "w-12 h-6 rounded-full relative transition-colors",
-                      notifSettings.whatsapp ? "bg-emerald-500" : "bg-gray-300 dark:bg-neutral-600"
-                    )}
-                  >
-                    <div className={cn(
-                      "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                      notifSettings.whatsapp ? "right-1" : "left-1"
-                    )} />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between p-6 bg-gray-50 dark:bg-neutral-700/30 rounded-3xl">
-                  <div>
-                    <h4 className="font-bold text-gray-900 dark:text-white">Notifikasi Email</h4>
-                    <p className="text-xs text-gray-500 mt-1">Kirim laporan bulanan melalui email.</p>
-                  </div>
-                  <button 
-                    onClick={() => setNotifSettings(prev => ({ ...prev, email: !prev.email }))}
-                    className={cn(
-                      "w-12 h-6 rounded-full relative transition-colors",
-                      notifSettings.email ? "bg-imigrasi-primary" : "bg-gray-300 dark:bg-neutral-600"
-                    )}
-                  >
-                    <div className={cn(
-                      "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                      notifSettings.email ? "right-1" : "left-1"
-                    )} />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between p-6 bg-gray-50 dark:bg-neutral-700/30 rounded-3xl">
-                  <div>
-                    <h4 className="font-bold text-gray-900 dark:text-white">Notifikasi Dokumen Baru</h4>
-                    <p className="text-xs text-gray-500 mt-1">Beritahu anggota saat ada dokumen baru diunggah.</p>
-                  </div>
-                  <button 
-                    onClick={() => setNotifSettings(prev => ({ ...prev, newDoc: !prev.newDoc }))}
-                    className={cn(
-                      "w-12 h-6 rounded-full relative transition-colors",
-                      notifSettings.newDoc ? "bg-imigrasi-primary" : "bg-gray-300 dark:bg-neutral-600"
-                    )}
-                  >
-                    <div className={cn(
-                      "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                      notifSettings.newDoc ? "right-1" : "left-1"
-                    )} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {activeTab === 'financial' && (
             <div className="glass-card p-8 rounded-[2.5rem] space-y-8">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white">Parameter Keuangan</h3>
@@ -218,6 +155,28 @@ const Settings: React.FC = () => {
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Maksimal Tenor (Bulan)</label>
                   <input type="number" defaultValue={24} className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" />
+                </div>
+              </div>
+
+              <div className="pt-8 border-t border-gray-100 dark:border-neutral-700">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Alokasi Persentase SHU</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Jasa Modal (%)</label>
+                    <input type="number" defaultValue={40} className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Jasa Anggota (%)</label>
+                    <input type="number" defaultValue={60} className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Dana Cadangan (%)</label>
+                    <input type="number" defaultValue={25} className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Dana Pengurus (%)</label>
+                    <input type="number" defaultValue={10} className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" />
+                  </div>
                 </div>
               </div>
             </div>

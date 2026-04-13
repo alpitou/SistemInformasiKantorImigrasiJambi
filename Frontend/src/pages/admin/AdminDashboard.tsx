@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../hooks/useAuth';
 import { 
   BarChart, 
   Bar, 
@@ -34,8 +35,27 @@ import {
 } from 'recharts';
 
 const AdminDashboard: React.FC = () => {
+  const { user } = useAuth();
   const [viewType, setViewType] = useState<'monthly' | 'annual'>('monthly');
   const navigate = useNavigate();
+
+  const getDashboardTitle = () => {
+    switch (user?.role) {
+      case 'secretary': return 'Dashboard Sekretaris';
+      case 'treasurer': return 'Dashboard Bendahara';
+      case 'chairman': return 'Dashboard Ketua';
+      default: return 'Executive Dashboard';
+    }
+  };
+
+  const getDashboardDesc = () => {
+    switch (user?.role) {
+      case 'secretary': return 'Kelola administrasi, dokumen, dan verifikasi data anggota.';
+      case 'treasurer': return 'Pantau arus kas, simpanan, dan proses pencairan pinjaman.';
+      case 'chairman': return 'Tinjau performa koperasi dan berikan persetujuan strategis.';
+      default: return 'Ringkasan performa dan kesehatan keuangan Koperasi Kanim Jambi.';
+    }
+  };
 
   const stats = viewType === 'monthly' ? [
     { label: 'Total Anggota', value: '245', icon: Users, color: 'bg-blue-500', trend: '+12' },
@@ -89,8 +109,8 @@ const AdminDashboard: React.FC = () => {
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Executive Dashboard</h1>
-          <p className="text-gray-500 dark:text-gray-400">Ringkasan performa dan kesehatan keuangan Koperasi Kanim Jambi.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{getDashboardTitle()}</h1>
+          <p className="text-gray-500 dark:text-gray-400">{getDashboardDesc()}</p>
         </div>
         <div className="flex items-center gap-3">
           <button className="p-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl text-gray-500 hover:text-imigrasi-primary transition-colors">
@@ -253,42 +273,60 @@ const AdminDashboard: React.FC = () => {
 
         {/* Quick Links */}
         <div className="space-y-6">
-          <h3 className="font-bold text-lg text-gray-900 dark:text-white">Pintasan Admin</h3>
+          <h3 className="font-bold text-lg text-gray-900 dark:text-white">Pintasan {user?.role === 'admin' ? 'Admin' : 'Tugas'}</h3>
           <div className="grid grid-cols-1 gap-4">
-            <button 
-              onClick={() => navigate('/admin/approvals')}
-              className="flex items-center gap-4 p-4 glass-card rounded-2xl hover:border-imigrasi-accent transition-all group"
-            >
-              <div className="p-3 bg-blue-100 text-blue-600 rounded-xl group-hover:scale-110 transition-transform">
-                <ShieldCheck size={20} />
-              </div>
-              <div className="text-left">
-                <h4 className="text-sm font-bold text-gray-900 dark:text-white">Verifikasi Anggota</h4>
-                <p className="text-[10px] text-gray-500">12 antrean menunggu</p>
-              </div>
-            </button>
+            {(user?.role === 'admin' || user?.role === 'secretary' || user?.role === 'chairman') && (
+              <button 
+                onClick={() => navigate('/admin/approvals')}
+                className="flex items-center gap-4 p-4 glass-card rounded-2xl hover:border-imigrasi-accent transition-all group"
+              >
+                <div className="p-3 bg-blue-100 text-blue-600 rounded-xl group-hover:scale-110 transition-transform">
+                  <ShieldCheck size={20} />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white">Verifikasi & Persetujuan</h4>
+                  <p className="text-[10px] text-gray-500">12 antrean menunggu</p>
+                </div>
+              </button>
+            )}
+            {(user?.role === 'admin' || user?.role === 'treasurer') && (
+              <button 
+                onClick={() => navigate('/admin/finance')}
+                className="flex items-center gap-4 p-4 glass-card rounded-2xl hover:border-imigrasi-accent transition-all group"
+              >
+                <div className="p-3 bg-emerald-100 text-emerald-600 rounded-xl group-hover:scale-110 transition-transform">
+                  <Wallet size={20} />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white">Manajemen Keuangan</h4>
+                  <p className="text-[10px] text-gray-500">Update kas & simpanan</p>
+                </div>
+              </button>
+            )}
+            {(user?.role === 'admin' || user?.role === 'secretary') && (
+              <button 
+                onClick={() => navigate('/admin/members')}
+                className="flex items-center gap-4 p-4 glass-card rounded-2xl hover:border-imigrasi-accent transition-all group"
+              >
+                <div className="p-3 bg-purple-100 text-purple-600 rounded-xl group-hover:scale-110 transition-transform">
+                  <Users size={20} />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white">Data Anggota</h4>
+                  <p className="text-[10px] text-gray-500">Kelola database anggota</p>
+                </div>
+              </button>
+            )}
             <button 
               onClick={() => navigate('/admin/reports')}
               className="flex items-center gap-4 p-4 glass-card rounded-2xl hover:border-imigrasi-accent transition-all group"
             >
-              <div className="p-3 bg-emerald-100 text-emerald-600 rounded-xl group-hover:scale-110 transition-transform">
+              <div className="p-3 bg-amber-100 text-amber-600 rounded-xl group-hover:scale-110 transition-transform">
                 <FileText size={20} />
               </div>
               <div className="text-left">
                 <h4 className="text-sm font-bold text-gray-900 dark:text-white">Laporan Keuangan</h4>
-                <p className="text-[10px] text-gray-500">Generate laporan Maret</p>
-              </div>
-            </button>
-            <button 
-              onClick={() => navigate('/admin/audit-log')}
-              className="flex items-center gap-4 p-4 glass-card rounded-2xl hover:border-imigrasi-accent transition-all group"
-            >
-              <div className="p-3 bg-amber-100 text-amber-600 rounded-xl group-hover:scale-110 transition-transform">
-                <Activity size={20} />
-              </div>
-              <div className="text-left">
-                <h4 className="text-sm font-bold text-gray-900 dark:text-white">Audit Log</h4>
-                <p className="text-[10px] text-gray-500">Pantau aktivitas sistem</p>
+                <p className="text-[10px] text-gray-500">Generate laporan berkala</p>
               </div>
             </button>
           </div>

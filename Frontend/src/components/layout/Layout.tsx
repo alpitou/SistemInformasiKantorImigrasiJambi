@@ -17,7 +17,9 @@ import {
   ShieldCheck,
   Users,
   PieChart,
-  Settings
+  Settings,
+  Archive,
+  FileSpreadsheet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -35,7 +37,7 @@ const Layout: React.FC = () => {
 
   // Simulate new application notification for admin
   React.useEffect(() => {
-    if (user?.role === 'admin') {
+    if (isAdminRole(user?.role)) {
       const timer = setTimeout(() => {
         const hasNotified = sessionStorage.getItem('admin_notified_pengajuan');
         if (!hasNotified) {
@@ -56,21 +58,46 @@ const Layout: React.FC = () => {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/member', end: true },
     { icon: Wallet, label: 'Simpanan', path: '/member/savings' },
     { icon: HandCoins, label: 'Pinjaman', path: '/member/loans' },
+    { icon: PieChart, label: 'SHU', path: '/member/shu' },
     { icon: History, label: 'Riwayat', path: '/member/history' },
     { icon: FileText, label: 'Dokumen', path: '/member/documents' },
   ];
 
   const adminNavItems = [
-    { icon: PieChart, label: 'Executive Dashboard', path: '/admin', end: true },
-    { icon: Users, label: 'Manajemen Anggota', path: '/admin/members' },
-    { icon: Wallet, label: 'Keuangan', path: '/admin/finance' },
-    { icon: ShieldCheck, label: 'Persetujuan', path: '/admin/approvals' },
-    { icon: FileText, label: 'Dokumen', path: '/admin/documents' },
-    { icon: FileText, label: 'Laporan', path: '/admin/reports' },
+    { 
+      icon: LayoutDashboard, 
+      label: user?.role === 'secretary' ? 'Dashboard Sekretaris' : 
+             user?.role === 'treasurer' ? 'Dashboard Bendahara' : 
+             user?.role === 'chairman' ? 'Dashboard Ketua' : 'Executive Dashboard', 
+      path: '/admin', 
+      end: true 
+    },
+    ...(user?.role === 'secretary' || user?.role === 'chairman' || user?.role === 'admin' ? [
+      { icon: Users, label: 'Manajemen Anggota', path: '/admin/members' }
+    ] : []),
+    ...(user?.role === 'treasurer' || user?.role === 'chairman' || user?.role === 'admin' ? [
+      { icon: Wallet, label: 'Keuangan', path: '/admin/finance' }
+    ] : []),
+    ...(user?.role === 'treasurer' || user?.role === 'chairman' || user?.role === 'admin' ? [
+      { icon: ShieldCheck, label: 'Persetujuan', path: '/admin/approvals' }
+    ] : []),
+    ...(user?.role === 'secretary' || user?.role === 'chairman' || user?.role === 'admin' ? [
+      { icon: Archive, label: 'Arsip Perjanjian', path: '/admin/archives' }
+    ] : []),
+    ...(user?.role === 'treasurer' || user?.role === 'chairman' || user?.role === 'admin' ? [
+      { icon: FileSpreadsheet, label: 'Ekspor Potongan', path: '/admin/deductions' }
+    ] : []),
+    ...(user?.role === 'secretary' || user?.role === 'chairman' || user?.role === 'admin' ? [
+      { icon: FileText, label: 'Upload Dokumen', path: '/admin/documents' }
+    ] : []),
+    ...(user?.role === 'treasurer' || user?.role === 'chairman' || user?.role === 'admin' ? [
+      { icon: FileText, label: 'Laporan Keuangan', path: '/admin/reports' }
+    ] : []),
     { icon: Settings, label: 'Pengaturan', path: '/admin/settings' },
   ];
 
-  const navItems = user?.role === 'admin' ? adminNavItems : memberNavItems;
+  const isAdminRole = (role?: string) => ['admin', 'secretary', 'treasurer', 'chairman'].includes(role || '');
+  const navItems = isAdminRole(user?.role) ? adminNavItems : memberNavItems;
 
   return (
     <div className="min-h-screen flex bg-imigrasi-neutral-light dark:bg-neutral-900">
@@ -78,7 +105,10 @@ const Layout: React.FC = () => {
       <motion.aside 
         initial={false}
         animate={{ width: isSidebarOpen ? 280 : 80 }}
-        className="hidden md:flex flex-col bg-imigrasi-primary text-white sticky top-0 h-screen z-30 shadow-2xl"
+        className={cn(
+          "hidden md:flex flex-col sticky top-0 h-screen z-30 shadow-2xl transition-colors duration-300",
+          isDarkMode ? "bg-neutral-950 border-r border-neutral-800" : "bg-imigrasi-primary text-white"
+        )}
       >
         <div className="p-6 flex items-center justify-between overflow-hidden">
           <AnimatePresence mode="wait">
@@ -92,7 +122,7 @@ const Layout: React.FC = () => {
                 <div className="w-10 h-10 bg-imigrasi-accent rounded-lg flex items-center justify-center font-bold text-imigrasi-primary shadow-lg">
                   SIM
                 </div>
-                <div>
+                <div className={cn(isDarkMode ? "text-white" : "text-white")}>
                   <h1 className="font-bold text-lg leading-tight">SIMKOP-IM</h1>
                   <p className="text-[10px] text-imigrasi-accent uppercase tracking-widest font-semibold">Kanim Jambi</p>
                 </div>
@@ -101,7 +131,10 @@ const Layout: React.FC = () => {
           </AnimatePresence>
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            className={cn(
+              "p-2 rounded-lg transition-colors",
+              isDarkMode ? "hover:bg-neutral-800 text-neutral-400" : "hover:bg-white/10 text-white"
+            )}
           >
             {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -116,8 +149,8 @@ const Layout: React.FC = () => {
               className={({ isActive }) => cn(
                 "w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200 group",
                 isActive 
-                ? "bg-imigrasi-accent text-imigrasi-primary shadow-lg" 
-                : "hover:bg-white/10 text-white/70 hover:text-white"
+                ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent shadow-[0_0_20px_rgba(212,175,55,0.1)]" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg") 
+                : (isDarkMode ? "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-900" : "text-white/70 hover:text-white hover:bg-white/10")
               )}
             >
               <item.icon size={22} className="shrink-0" />
@@ -145,7 +178,10 @@ const Layout: React.FC = () => {
         initial={{ x: '-100%' }}
         animate={{ x: isMobileMenuOpen ? 0 : '-100%' }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="fixed top-0 left-0 bottom-0 w-72 bg-imigrasi-primary text-white z-50 md:hidden flex flex-col"
+        className={cn(
+          "fixed top-0 left-0 bottom-0 w-72 z-50 md:hidden flex flex-col",
+          isDarkMode ? "bg-neutral-950 border-r border-neutral-800" : "bg-imigrasi-primary text-white"
+        )}
       >
         <div className="p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -170,8 +206,8 @@ const Layout: React.FC = () => {
               className={({ isActive }) => cn(
                 "w-full flex items-center gap-4 p-4 rounded-xl transition-all",
                 isActive 
-                ? "bg-imigrasi-accent text-imigrasi-primary shadow-lg" 
-                : "hover:bg-white/10 text-white/70 hover:text-white"
+                ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg") 
+                : (isDarkMode ? "text-neutral-500 hover:text-neutral-200" : "text-white/70 hover:text-white")
               )}
               onClick={() => setIsMobileMenuOpen(false)}
             >
@@ -274,7 +310,10 @@ const Layout: React.FC = () => {
                         )}
                       </div>
                       <button 
-                        onClick={() => setIsNotificationOpen(false)}
+                        onClick={() => {
+                          setIsNotificationOpen(false);
+                          navigate(isAdminRole(user?.role) ? '/admin/notifications' : '/member/notifications');
+                        }}
                         className="w-full p-3 text-xs font-bold text-gray-500 hover:text-imigrasi-primary dark:hover:text-imigrasi-accent transition-colors border-t border-gray-100 dark:border-neutral-700"
                       >
                         Lihat Semua Notifikasi

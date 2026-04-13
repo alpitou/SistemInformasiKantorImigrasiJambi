@@ -9,9 +9,10 @@ const AuditLog: React.FC = () => {
   const logs = [
     { id: 'LOG-001', user: 'Admin Utama', action: 'Update Suku Bunga', target: 'Financial Settings', date: '2026-04-07 10:15:22', ip: '192.168.1.1' },
     { id: 'LOG-002', user: 'Bendahara', action: 'Approve Pinjaman', target: 'Loan #LP-2025-001', date: '2026-04-07 09:45:10', ip: '192.168.1.5' },
-    { id: 'LOG-003', user: 'Admin Utama', action: 'Upload Dokumen', target: 'RAT_2025.pdf', date: '2026-04-07 08:30:05', ip: '192.168.1.1' },
-    { id: 'LOG-004', user: 'Sistem', action: 'Auto-Backup', target: 'Database', date: '2026-04-07 00:00:01', ip: 'localhost' },
-    { id: 'LOG-005', user: 'Ketua', action: 'Login', target: 'Sistem', date: '2026-04-06 22:10:45', ip: '10.0.0.12' },
+    { id: 'LOG-003', user: 'Sistem', action: 'Setoran Iuran', target: 'Budi Santoso (USR001)', date: '2026-04-07 08:30:05', ip: '192.168.1.1' },
+    { id: 'LOG-004', user: 'Sistem', action: 'Pembayaran Pinjaman', target: 'Agus Setiawan (USR002)', date: '2026-04-07 00:00:01', ip: 'localhost' },
+    { id: 'LOG-005', user: 'Ketua', action: 'Approve Pencairan', target: 'Loan #LP-2025-002', date: '2026-04-06 22:10:45', ip: '10.0.0.12' },
+    { id: 'LOG-006', user: 'Bendahara', action: 'Transfer Dana', target: 'Loan #LP-2025-001', date: '2026-04-06 21:05:33', ip: '192.168.1.5' },
   ];
 
   const filteredLogs = logs.filter(log => 

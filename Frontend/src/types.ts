@@ -4,9 +4,13 @@ export interface User {
   nip: string;
   nik: string;
   unitKerja: string;
-  role: 'member' | 'admin';
+  role: 'member' | 'admin' | 'secretary' | 'treasurer' | 'chairman';
   status: 'Aktif' | 'Non-Aktif';
   avatar?: string;
+  phone?: string;
+  bankName?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
 }
 
 export interface Savings {

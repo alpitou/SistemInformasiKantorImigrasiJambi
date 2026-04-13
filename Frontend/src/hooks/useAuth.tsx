@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { User } from '../types';
-import { DUMMY_USER, DUMMY_ADMIN } from '../constants';
+import { DUMMY_USER, DUMMY_ADMIN, DUMMY_SECRETARY, DUMMY_TREASURER, DUMMY_CHAIRMAN } from '../constants';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (role: 'member' | 'admin') => void;
+  login: (role: 'member' | 'admin' | 'secretary' | 'treasurer' | 'chairman') => void;
   logout: () => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
@@ -29,8 +29,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem('darkMode', isDarkMode.toString());
   }, [isDarkMode]);
 
-  const login = (role: 'member' | 'admin') => {
-    setUser(role === 'member' ? DUMMY_USER : DUMMY_ADMIN);
+  const login = (role: 'member' | 'admin' | 'secretary' | 'treasurer' | 'chairman') => {
+    if (role === 'member') setUser(DUMMY_USER);
+    else if (role === 'admin') setUser(DUMMY_ADMIN);
+    else if (role === 'secretary') setUser(DUMMY_SECRETARY);
+    else if (role === 'treasurer') setUser(DUMMY_TREASURER);
+    else if (role === 'chairman') setUser(DUMMY_CHAIRMAN);
   };
 
   const logout = () => {

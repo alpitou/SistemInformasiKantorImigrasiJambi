@@ -29,8 +29,17 @@ const LoginPage: React.FC = () => {
       } else if (username === 'member') {
         login('member');
         navigate('/member');
+      } else if (username === 'secretary') {
+        login('secretary');
+        navigate('/admin');
+      } else if (username === 'treasurer') {
+        login('treasurer');
+        navigate('/admin');
+      } else if (username === 'chairman') {
+        login('chairman');
+        navigate('/admin');
       } else {
-        setError('Username atau password salah. Coba "admin" atau "member".');
+        setError('Username atau password salah. Coba "admin", "member", "secretary", "treasurer", atau "chairman".');
       }
     } catch (err) {
       setError('Terjadi kesalahan sistem. Silakan coba lagi.');
@@ -140,7 +149,7 @@ const LoginPage: React.FC = () => {
         <div className="mt-8 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-2xl flex items-start gap-3">
           <Info size={18} className="text-amber-600 shrink-0 mt-0.5" />
           <p className="text-[10px] text-amber-800 dark:text-amber-500/80 leading-relaxed">
-            Gunakan username <span className="font-bold">"admin"</span> untuk dashboard pengurus atau <span className="font-bold">"member"</span> untuk dashboard anggota. Password bebas.
+            Gunakan username <span className="font-bold">"admin"</span>, <span className="font-bold">"secretary"</span>, <span className="font-bold">"treasurer"</span>, <span className="font-bold">"chairman"</span> untuk dashboard pengurus atau <span className="font-bold">"member"</span> untuk dashboard anggota.
           </p>
         </div>
 
