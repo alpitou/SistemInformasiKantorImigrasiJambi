@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { userService } from '../../services/api';
 import { 
   Users, 
   UserPlus, 
@@ -25,6 +26,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/utils';
 
 const MemberManagement: React.FC = () => {
+  const [members, setMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const { user: currentUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,40 +45,76 @@ const MemberManagement: React.FC = () => {
     }).format(amount);
   };
 
-  const members = [
-    { id: 'USR001', name: 'Budi Santoso', nip: '198501012010011001', unit: 'Seksi Izin Tinggal', role: 'member', status: 'Aktif', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Budi', savings: 8500000, debt: 4000000 },
-    { id: 'USR002', name: 'Agus Setiawan', nip: '198801012012011002', unit: 'Seksi Lalu Lintas', role: 'member', status: 'Aktif', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Agus', savings: 12000000, debt: 15000000 },
-    { id: 'USR003', name: 'Siti Aminah', nip: '197805122005012002', unit: 'Sekretariat', role: 'admin', status: 'Aktif', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Siti', savings: 25000000, debt: 0 },
-    { id: 'USR004', name: 'Rudi Hartono', nip: '199001012015011004', unit: 'Seksi Intelijen', role: 'member', status: 'Pending', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rudi', savings: 0, debt: 0 },
-    { id: 'USR005', name: 'Linda Permata', nip: '199201012018012005', unit: 'Seksi Izin Tinggal', role: 'member', status: 'Aktif', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Linda', savings: 5000000, debt: 2000000 },
-  ];
-
-  const filteredMembers = members.filter(m => 
-    m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    m.nip.includes(searchTerm) ||
-    m.unit.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    fetchMembers();
+  }, []);
+  
+  const fetchMembers = async () => {
+    setLoading(true);
+    try {
+      const response = await userService.getUsers();
+      setMembers(response.data?.data ?? []);
+    } catch (error) {
+      console.error('Failed to fetch members:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleRefresh = async () => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 800));
+      await fetchMembers();
     setIsLoading(false);
-  };
-
-  const handleDelete = (id: string) => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus anggota ini?')) {
-      setIsLoading(true);
-      setTimeout(() => {
-        setIsLoading(false);
-        alert('Anggota berhasil dihapus.');
-      }, 1000);
-    }
   };
 
   const handleEdit = (member: any) => {
     setEditingMember(member);
     setShowAddModal(true);
   };
+  
+  const handleCreateMember = async (memberData: any) => {
+    try {
+      await userService.createUser(memberData);
+      await fetchMembers();
+      setShowAddModal(false);
+      alert('Anggota berhasil ditambahkan');
+    } catch (error) {
+      console.error('Failed to create member:', error);
+      alert('Gagal menambahkan anggota');
+    }
+  };
+  
+  const handleUpdateMember = async (id: number, memberData: any) => {
+    try {
+      await userService.updateUser(id, memberData);
+      await fetchMembers();
+      setShowAddModal(false);
+      setEditingMember(null);
+      alert('Anggota berhasil diperbarui');
+    } catch (error) {
+      console.error('Failed to update member:', error);
+      alert('Gagal memperbarui anggota');
+    }
+  };
+  
+  const handleDeleteMember = async (id: number) => {
+    if (window.confirm('Apakah Anda yakin ingin menghapus anggota ini?')) {
+      try {
+        await userService.deleteUser(id);
+        await fetchMembers();
+        alert('Anggota berhasil dihapus');
+      } catch (error) {
+        console.error('Failed to delete member:', error);
+        alert('Gagal menghapus anggota');
+      }
+    }
+  };
+
+  const filteredMembers = members.filter((member) =>
+    member.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    member.nip?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    member.unit?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <motion.div 
@@ -380,7 +419,7 @@ const MemberManagement: React.FC = () => {
                         <Edit size={18} />
                       </button>
                       <button 
-                        onClick={() => handleDelete(member.id)}
+                        onClick={() => handleDeleteMember(member.id)}
                         className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                       >
                         <Trash2 size={18} />

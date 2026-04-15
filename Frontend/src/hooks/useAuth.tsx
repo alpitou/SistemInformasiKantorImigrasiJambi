@@ -1,26 +1,53 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User } from '../types';
-import { DUMMY_USER, DUMMY_ADMIN, DUMMY_SECRETARY, DUMMY_TREASURER, DUMMY_CHAIRMAN } from '../constants';
+import { authService, testConnection } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (role: 'member' | 'admin' | 'secretary' | 'treasurer' | 'chairman') => void;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  isLoading: boolean;
+  error: string | null;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
+  testBackendConnection: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved === 'true';
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
+    const initAuth = async () => {
+      const storedUser = localStorage.getItem('user');
+      const token = localStorage.getItem('token');
+      
+      console.log('Initializing auth - storedUser:', !!storedUser, 'token:', !!token);
+      
+      if (storedUser && token) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch (e) {
+          console.error('Error parsing stored user:', e);
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+        }
+      }
+      setIsLoading(false);
+    };
+    
+    initAuth();
+  }, []);
+
+  useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
     } else {
@@ -29,20 +56,57 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem('darkMode', isDarkMode.toString());
   }, [isDarkMode]);
 
-  const login = (role: 'member' | 'admin' | 'secretary' | 'treasurer' | 'chairman') => {
-    if (role === 'member') setUser(DUMMY_USER);
-    else if (role === 'admin') setUser(DUMMY_ADMIN);
-    else if (role === 'secretary') setUser(DUMMY_SECRETARY);
-    else if (role === 'treasurer') setUser(DUMMY_TREASURER);
-    else if (role === 'chairman') setUser(DUMMY_CHAIRMAN);
+  const testBackendConnection = async () => {
+    try {
+      const result = await testConnection();
+      console.log('Backend connection test result:', result);
+      return true;
+    } catch (error) {
+      console.error('Backend connection failed:', error);
+      return false;
+    }
   };
 
-  const logout = () => {
-    setUser(null);
+  const login = async (email: string, password: string) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Login function called with:', { email, passwordLength: password.length });
+      
+      const response = await authService.login(email, password);
+      console.log('Login service response:', response);
+      
+      if (response.success) {
+        setUser(response.data.user);
+        console.log('User set in context:', response.data.user);
+      } else {
+        setError(response.message || 'Login gagal');
+        throw new Error(response.message || 'Login gagal');
+      }
+    } catch (err: any) {
+      console.error('Login error in hook:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Terjadi kesalahan saat login';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(prev => !prev);
+  const logout = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      await authService.logout();
+      setUser(null);
+    } catch (err: any) {
+      console.error('Logout error:', err);
+      setError(err.message || 'Gagal logout');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -51,8 +115,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isAuthenticated: !!user, 
       login, 
       logout, 
+      isLoading,
+      error,
       isDarkMode, 
-      toggleDarkMode 
+      toggleDarkMode: () => setIsDarkMode(prev => !prev),
+      testBackendConnection
     }}>
       {children}
     </AuthContext.Provider>
