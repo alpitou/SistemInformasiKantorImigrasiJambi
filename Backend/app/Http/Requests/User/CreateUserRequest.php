@@ -3,28 +3,43 @@
 namespace App\Http\Requests\User;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class CreateUserRequest extends FormRequest
 {
     public function authorize()
     {
-        $user = $this->user();
-        return $user && in_array($user->role->name, ['admin', 'ketua', 'sekretaris']);
+        return true;
     }
 
     public function rules()
     {
         return [
             'name' => 'required|string|max:255',
-            'role_id' => 'required|exists:roles,id',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:8',
-            'nip' => 'required|string|unique:users,nip',
-            'nik' => 'required|string|unique:users,nik',
-            'unit' => 'required|string|max:255',
+            'password' => 'required|string|min:4',
+            'nip' => 'nullable|string|unique:users,nip',
+            'nik' => 'nullable|string|unique:users,nik',
+            'unit' => 'required|string',
+            'phone' => 'nullable|string',
+            'role_id' => 'required|exists:roles,id',
             'join_date' => 'required|date',
-            'phone' => 'nullable|string|max:20',
-            'status' => 'sometimes|in:active,inactive',
+            'status' => 'required|in:active,inactive'
+        ];
+    }
+
+    public function messages()
+    {
+        return [
+            'name.required' => 'Nama wajib diisi',
+            'email.required' => 'Email wajib diisi',
+            'email.unique' => 'Email sudah terdaftar',
+            'password.required' => 'Password wajib diisi',
+            'password.min' => 'Password minimal 4 karakter',
+            'role_id.required' => 'Role wajib dipilih',
+            'role_id.exists' => 'Role tidak valid',
+            'unit.required' => 'Unit kerja wajib diisi',
+            'join_date.required' => 'Tanggal bergabung wajib diisi',
         ];
     }
 }

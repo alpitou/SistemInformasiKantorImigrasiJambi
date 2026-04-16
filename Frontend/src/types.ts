@@ -1,47 +1,45 @@
+// src/types.ts
 export interface User {
-  id: string;
+  id: number;
   name: string;
-  nip: string;
-  nik: string;
-  unitKerja: string;
-  role: 'member' | 'admin' | 'secretary' | 'treasurer' | 'chairman';
-  status: 'Aktif' | 'Non-Aktif';
+  email: string;
+  role: {
+    id: number;
+    name: string;
+  } | string;
+  roleName?: string;
+  nip: string | null;
+  nik: string | null;
+  unit: string;
+  phone: string | null;
+  status: 'active' | 'inactive';
+  join_date: string;
   avatar?: string;
-  phone?: string;
-  bankName?: string;
-  bankAccountName?: string;
-  bankAccountNumber?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
-export interface Savings {
-  pokok: number;
-  wajib: number;
-  sukarela: number;
-  total: number;
+export interface Role {
+  id: number;
+  name: string;
+  guard_name: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
-export interface Loan {
+export interface Notification {
   id: string;
-  amount: number;
-  remaining: number;
-  tenor: number; // months
-  paidInstallments: number;
-  dueDate: string;
-  status: 'Active' | 'Paid' | 'Pending' | 'Rejected';
-  dateApplied: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  read: boolean;
+  time: string;
+  link?: string;
 }
 
-export interface Transaction {
-  id: string;
-  type: 'Simpanan' | 'Pinjaman' | 'Penarikan';
-  category: string;
-  amount: number;
-  date: string;
-  status: 'Success' | 'Pending' | 'Failed';
-}
-
-export interface SHU {
-  year: number;
-  amount: number;
-  participation: number;
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message: string;
+  data: T;
+  errors?: any;
 }

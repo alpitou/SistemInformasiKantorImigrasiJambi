@@ -1,7 +1,7 @@
 // src/components/layout/Layout.tsx
-import React, { useState } from 'react';
-import { useAuth } from '../../hooks/useAuth';  // PERBAIKAN: Path yang benar
-import { useNotifications } from '../../hooks/useNotifications';  // PERBAIKAN: Path yang benar
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../hooks/useAuth';
+import { useNotifications } from '../../hooks/useNotifications';
 import { 
   LayoutDashboard, 
   User as UserIcon, 
@@ -26,11 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 
-interface LayoutProps {
-  children?: React.ReactNode;
-}
-
-const Layout: React.FC<LayoutProps> = ({ children }) => {
+const Layout: React.FC = () => {
   const { user, logout, isDarkMode, toggleDarkMode } = useAuth();
   const { notifications, markAsRead, markAllAsRead, unreadCount, addNotification } = useNotifications();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -43,9 +39,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // Ambil role dengan benar
   const userRole = user?.role?.name || user?.role || 'member';
   
-  // Cek apakah user adalah admin (menggunakan bahasa Indonesia)
+  // Cek apakah user adalah admin
   const isAdminRole = () => {
-    const adminRoles = ['admin', 'sekretaris', 'bendahara', 'ketua', 'pengawas'];
+    const adminRoles = ['admin', 'ketua', 'sekretaris', 'bendahara', 'pengawas'];
     return adminRoles.includes(userRole);
   };
 
@@ -82,8 +78,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   console.log('Layout - Is Admin:', isAdminRole());
   console.log('Layout - Nav Items:', navItems.map(item => item.label));
 
-  // Simulasi notifikasi
-  React.useEffect(() => {
+  // Simulasi notifikasi untuk admin
+  useEffect(() => {
     if (isAdminRole()) {
       const timer = setTimeout(() => {
         const hasNotified = sessionStorage.getItem('admin_notified_pengajuan');
@@ -99,7 +95,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [user, addNotification]);
+  }, [user, addNotification, isAdminRole]);
 
   return (
     <div className="min-h-screen flex bg-imigrasi-neutral-light dark:bg-neutral-900">
@@ -378,9 +374,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        {/* Content Area - Gunakan children atau Outlet */}
+        {/* Content Area - Outlet untuk nested routes */}
         <div className="p-4 md:p-8 flex-1">
-          {children || <Outlet />}
+          <Outlet />
         </div>
       </main>
     </div>

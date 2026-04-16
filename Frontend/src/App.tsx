@@ -5,14 +5,6 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import Layout from './components/layout/Layout';
 import { NotificationProvider } from './hooks/useNotifications';
 
-// Simple test component untuk sementara
-const SimpleDashboard = () => (
-  <div className="p-8">
-    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-    <p className="text-gray-500 mt-4">Konten dashboard akan muncul di sini.</p>
-  </div>
-);
-
 // Lazy load pages
 const LoginPage = lazy(() => import('./pages/Login'));
 
@@ -37,6 +29,10 @@ const Reports = lazy(() => import('./pages/admin/Reports'));
 const AuditLog = lazy(() => import('./pages/admin/AuditLog'));
 const AdminSettings = lazy(() => import('./pages/admin/Settings'));
 
+// Role definitions
+const MEMBER_ROLES = ['member', 'anggota'];
+const ADMIN_ROLES = ['admin', 'ketua', 'sekretaris', 'bendahara', 'pengawas'];
+
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-neutral-900">
     <div className="w-10 h-10 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
@@ -50,48 +46,40 @@ const ProtectedRoute: React.FC<{
 }> = ({ children, allowedRoles }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
   
-  console.log('ProtectedRoute - isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'user:', user);
-  
   if (isLoading) {
     return <PageLoader />;
   }
   
   if (!isAuthenticated) {
-    console.log('Not authenticated, redirecting to login');
     return <Navigate to="/login" replace />;
   }
   
-  const userRole = user?.role?.name || user?.role || 'member';
-  console.log('User role:', userRole, 'Allowed roles:', allowedRoles);
+  let userRole = user?.role?.name || user?.role || 'member';
+  if (userRole === 'anggota') {
+    userRole = 'member';
+  }
   
-  if (allowedRoles && !allowedRoles.includes(userRole)) {
-    console.log('Role not allowed, redirecting');
-    const defaultRoute = userRole === 'member' ? '/member' : '/admin';
+  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+    const isMember = MEMBER_ROLES.includes(userRole);
+    const defaultRoute = isMember ? '/member' : '/admin';
     return <Navigate to={defaultRoute} replace />;
   }
   
-  console.log('Access granted to protected route');
   return <>{children}</>;
-};
-
-// Layout wrapper yang lebih sederhana untuk test
-const LayoutWrapper = ({ children }: { children: React.ReactNode }) => {
-  console.log('LayoutWrapper rendering');
-  return <Layout>{children}</Layout>;
 };
 
 const AppContent: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
-
-  console.log('AppContent - isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
 
   if (isLoading) {
     return <PageLoader />;
   }
 
   const getDefaultRoute = () => {
-    const role = user?.role?.name || user?.role;
-    if (['admin', 'ketua', 'bendahara', 'sekretaris', 'pengawas'].includes(role || '')) {
+    let role = user?.role?.name || user?.role;
+    if (role === 'anggota') role = 'member';
+    
+    if (ADMIN_ROLES.includes(role || '')) {
       return '/admin';
     }
     return '/member';
@@ -105,143 +93,119 @@ const AppContent: React.FC = () => {
           isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <LoginPage />
         } />
         
-        {/* Member Routes dengan Layout */}
-        <Route path="/member" element={
-          <ProtectedRoute allowedRoles={['member']}>
-            <Layout>
+        {/* PERUBAHAN PENTING: Layout membungkus semua route yang membutuhkan sidebar */}
+        <Route element={<Layout />}>
+          {/* Member Routes */}
+          <Route path="/member" element={
+            <ProtectedRoute allowedRoles={['member']}>
               <MemberDashboard />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/member/savings" element={
-          <ProtectedRoute allowedRoles={['member']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/member/savings" element={
+            <ProtectedRoute allowedRoles={['member']}>
               <MemberSavings />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/member/loans" element={
-          <ProtectedRoute allowedRoles={['member']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/member/loans" element={
+            <ProtectedRoute allowedRoles={['member']}>
               <MemberLoans />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/member/history" element={
-          <ProtectedRoute allowedRoles={['member']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/member/history" element={
+            <ProtectedRoute allowedRoles={['member']}>
               <MemberHistory />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/member/shu" element={
-          <ProtectedRoute allowedRoles={['member']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/member/shu" element={
+            <ProtectedRoute allowedRoles={['member']}>
               <MemberSHU />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/member/documents" element={
-          <ProtectedRoute allowedRoles={['member']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/member/documents" element={
+            <ProtectedRoute allowedRoles={['member']}>
               <MemberDocuments />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/member/profile" element={
-          <ProtectedRoute allowedRoles={['member']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/member/profile" element={
+            <ProtectedRoute allowedRoles={['member']}>
               <MemberProfile />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        {/* Admin Routes dengan Layout */}
-        <Route path="/admin" element={
-          <ProtectedRoute allowedRoles={['admin', 'ketua', 'bendahara', 'sekretaris']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          {/* Admin Routes */}
+          <Route path="/admin" element={
+            <ProtectedRoute allowedRoles={['admin']}>
               <AdminDashboard />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/members" element={
-          <ProtectedRoute allowedRoles={['admin', 'ketua', 'sekretaris', 'bendahara']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/members" element={
+            <ProtectedRoute allowedRoles={['admin']}>
               <MemberManagement />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/financial" element={
-          <ProtectedRoute allowedRoles={['admin', 'ketua', 'bendahara']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/financial" element={
+            <ProtectedRoute allowedRoles={['admin']}>
               <FinancialManagement />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/approvals" element={
-          <ProtectedRoute allowedRoles={['admin', 'ketua', 'bendahara']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/approvals" element={
+            <ProtectedRoute allowedRoles={['admin']}>
               <Approvals />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/loan-archives" element={
-          <ProtectedRoute allowedRoles={['admin', 'ketua', 'sekretaris']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/loan-archives" element={
+            <ProtectedRoute allowedRoles={['admin']}>
               <LoanArchives />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/deductions" element={
-          <ProtectedRoute allowedRoles={['admin', 'bendahara']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/deductions" element={
+            <ProtectedRoute allowedRoles={['admin']}>
               <DeductionExport />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/documents" element={
-          <ProtectedRoute allowedRoles={['admin', 'ketua', 'sekretaris']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/documents" element={
+            <ProtectedRoute allowedRoles={['admin']}>
               <AdminDocuments />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/reports" element={
-          <ProtectedRoute allowedRoles={['admin', 'ketua', 'bendahara']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/reports" element={
+            <ProtectedRoute allowedRoles={['admin']}>
               <Reports />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/audit" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/audit" element={
+            <ProtectedRoute allowedRoles={['admin']}>
               <AuditLog />
-            </Layout>
-          </ProtectedRoute>
-        } />
-        
-        <Route path="/admin/settings" element={
-          <ProtectedRoute allowedRoles={['admin', 'ketua', 'bendahara', 'sekretaris']}>
-            <Layout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/settings" element={
+            <ProtectedRoute allowedRoles={['admin']}>
               <AdminSettings />
-            </Layout>
-          </ProtectedRoute>
-        } />
+            </ProtectedRoute>
+          } />
+          
+          {/* Settings Route (common) */}
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <AdminSettings />
+            </ProtectedRoute>
+          } />
+        </Route>
         
         {/* Default Redirect */}
         <Route path="/" element={<Navigate to={getDefaultRoute()} replace />} />

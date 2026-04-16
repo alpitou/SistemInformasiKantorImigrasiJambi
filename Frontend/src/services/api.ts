@@ -1,7 +1,8 @@
+// src/services/api.ts
 import axios from 'axios';
 import { User } from '../types';
 
-const API_URL = 'http://127.0.0.1:8000/api'; // Gunakan 127.0.0.1, bukan localhost
+const API_URL = 'http://127.0.0.1:8000/api';
 
 console.log('API_URL:', API_URL);
 
@@ -109,10 +110,23 @@ export const authService = {
   },
 };
 
+// Role Service
+//export const roleService = {
+//  getRoles: async () => {
+//    const response = await api.get('/roles');
+//    return response;
+//  },
+//};
+
 // User Service
 export const userService = {
-  getUsers: async () => {
-    const response = await api.get('/users');
+  getUsers: async (page = 1, perPage = 15) => {
+    const response = await api.get('/users', { params: { page, per_page: perPage } });
+    return response;
+  },
+
+  getUser: async (id: number) => {
+    const response = await api.get(`/users/${id}`);
     return response;
   },
 
@@ -128,6 +142,11 @@ export const userService = {
 
   deleteUser: async (id: number) => {
     const response = await api.delete(`/users/${id}`);
+    return response;
+  },
+
+  restoreUser: async (id: number) => {
+    const response = await api.post(`/users/${id}/restore`);
     return response;
   }
 };
