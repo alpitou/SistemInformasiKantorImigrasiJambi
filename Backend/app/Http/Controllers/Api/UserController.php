@@ -4,11 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -24,7 +22,6 @@ class UserController extends Controller
                 'data' => $users
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching users: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch users: ' . $e->getMessage()
@@ -35,9 +32,6 @@ class UserController extends Controller
     public function store(Request $request)
     {
         try {
-            Log::info('Store user request:', $request->all());
-
-            // Validasi - NIP dan NIK tidak wajib, tapi salah satu bisa diisi
             $validator = validator($request->all(), [
                 'name' => 'required|string|max:255',
                 'email' => 'required|email|unique:users,email',
@@ -61,9 +55,6 @@ class UserController extends Controller
 
             $validated = $validator->validated();
 
-            // NIP dan NIK bisa kosong, tidak wajib diisi salah satu
-            // Karena bisa jadi karyawan (pakai NIP) atau outsourching (pakai NIK)
-
             $userData = [
                 'name' => $validated['name'],
                 'email' => $validated['email'],
@@ -75,19 +66,14 @@ class UserController extends Controller
                 'status' => $validated['status']
             ];
 
-            // Tambahkan NIP jika ada
             if (!empty($validated['nip'])) {
                 $userData['nip'] = $validated['nip'];
             }
-
-            // Tambahkan NIK jika ada
             if (!empty($validated['nik'])) {
                 $userData['nik'] = $validated['nik'];
             }
 
             $user = User::create($userData);
-
-            Log::info('User created successfully:', ['id' => $user->id]);
 
             return response()->json([
                 'success' => true,
@@ -96,9 +82,6 @@ class UserController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
-            Log::error('Error creating user: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
-            
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create user: ' . $e->getMessage()
@@ -106,26 +89,46 @@ class UserController extends Controller
         }
     }
 
-    public function update(Request $request, User $user)
+    public function show($id)
     {
         try {
-            $rules = [
+            $user = User::with('role')->findOrFail($id);
+            return response()->json([
+                'success' => true,
+                'message' => 'User retrieved successfully',
+                'data' => $user
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch user: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function update(Request $request, $id)
+    {
+        try {
+            Log::info('Updating user ID: ' . $id);
+            Log::info('Request data:', $request->all());
+
+            // Cari user manual
+            $user = User::findOrFail($id);
+            
+            Log::info('Current user email: ' . $user->email);
+
+            // Validasi dasar - TANPA validasi unique!
+            $validator = validator($request->all(), [
                 'name' => 'required|string|max:255',
-                'email' => ['required', 'email', Rule::unique('users')->ignore($user->id)],
-                'nip' => ['nullable', 'string', Rule::unique('users')->ignore($user->id)],
-                'nik' => ['nullable', 'string', Rule::unique('users')->ignore($user->id)],
+                'email' => 'required|email',
                 'unit' => 'required|string',
                 'phone' => 'nullable|string',
                 'role_id' => 'required|exists:roles,id',
                 'join_date' => 'required|date',
-                'status' => 'required|in:active,inactive'
-            ];
-
-            if ($request->filled('password')) {
-                $rules['password'] = 'required|string|min:4';
-            }
-
-            $validator = validator($request->all(), $rules);
+                'status' => 'required|in:active,inactive',
+                'nip' => 'nullable|string',
+                'nik' => 'nullable|string',
+            ]);
 
             if ($validator->fails()) {
                 return response()->json([
@@ -137,36 +140,74 @@ class UserController extends Controller
 
             $validated = $validator->validated();
 
-            $userData = [
-                'name' => $validated['name'],
-                'email' => $validated['email'],
-                'unit' => $validated['unit'],
-                'phone' => $validated['phone'] ?? null,
-                'role_id' => $validated['role_id'],
-                'join_date' => $validated['join_date'],
-                'status' => $validated['status']
-            ];
-
-            // Update NIP jika ada
-            if (isset($validated['nip'])) {
-                $userData['nip'] = !empty($validated['nip']) ? $validated['nip'] : null;
+            // Cek duplicate email secara manual (abaikan user sendiri)
+            if ($validated['email'] !== $user->email) {
+                $existing = User::where('email', $validated['email'])->first();
+                if ($existing) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Email sudah digunakan oleh user lain',
+                        'errors' => ['email' => ['The email has already been taken.']]
+                    ], 422);
+                }
             }
 
-            // Update NIK jika ada
-            if (isset($validated['nik'])) {
-                $userData['nik'] = !empty($validated['nik']) ? $validated['nik'] : null;
+            // Cek duplicate NIP secara manual
+            if (isset($validated['nip']) && $validated['nip'] !== $user->nip && !empty($validated['nip'])) {
+                $existing = User::where('nip', $validated['nip'])->first();
+                if ($existing) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'NIP sudah digunakan oleh user lain',
+                        'errors' => ['nip' => ['The nip has already been taken.']]
+                    ], 422);
+                }
             }
 
+            // Cek duplicate NIK secara manual
+            if (isset($validated['nik']) && $validated['nik'] !== $user->nik && !empty($validated['nik'])) {
+                $existing = User::where('nik', $validated['nik'])->first();
+                if ($existing) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'NIK sudah digunakan oleh user lain',
+                        'errors' => ['nik' => ['The nik has already been taken.']]
+                    ], 422);
+                }
+            }
+
+            // Update data
+            $user->name = $validated['name'];
+            $user->email = $validated['email'];
+            $user->unit = $validated['unit'];
+            $user->phone = $validated['phone'] ?? null;
+            $user->role_id = $validated['role_id'];
+            $user->join_date = $validated['join_date'];
+            $user->status = $validated['status'];
+            
+            // Handle NIP
+            if ($request->has('nip')) {
+                $user->nip = !empty($validated['nip']) ? $validated['nip'] : null;
+            }
+            
+            // Handle NIK
+            if ($request->has('nik')) {
+                $user->nik = !empty($validated['nik']) ? $validated['nik'] : null;
+            }
+            
+            // Handle password
             if ($request->filled('password')) {
-                $userData['password'] = Hash::make($request->password);
+                $user->password = Hash::make($request->password);
             }
+            
+            $user->save();
 
-            $user->update($userData);
+            Log::info('User updated successfully');
 
             return response()->json([
                 'success' => true,
                 'message' => 'User updated successfully',
-                'data' => $user->fresh('role')
+                'data' => $user->load('role')
             ]);
 
         } catch (\Exception $e) {
@@ -178,9 +219,10 @@ class UserController extends Controller
         }
     }
 
-    public function destroy(User $user)
+    public function destroy($id)
     {
         try {
+            $user = User::findOrFail($id);
             $user->delete();
             return response()->json([
                 'success' => true,

@@ -26,7 +26,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return saved === 'true';
   });
 
-  // Initialize auth from localStorage
   useEffect(() => {
     const initAuth = async () => {
       const storedUser = localStorage.getItem('user');
@@ -37,20 +36,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (storedUser && token) {
         try {
           const parsedUser = JSON.parse(storedUser);
-          
-          // Normalisasi role saat load dari storage
-          if (parsedUser.role) {
-            if (typeof parsedUser.role === 'object') {
-              if (parsedUser.role.name === 'anggota') {
-                parsedUser.role.name = 'member';
-              }
-              parsedUser.roleName = parsedUser.role.name;
-            } else if (parsedUser.role === 'anggota') {
-              parsedUser.role = 'member';
-              parsedUser.roleName = 'member';
-            }
-          }
-          
           setUser(parsedUser);
           console.log('User loaded from storage:', parsedUser);
         } catch (e) {
@@ -65,7 +50,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     initAuth();
   }, []);
 
-  // Apply dark mode class to html element
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -75,7 +59,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem('darkMode', isDarkMode.toString());
   }, [isDarkMode]);
 
-  // Test backend connection
   const testBackendConnection = async () => {
     try {
       const result = await testConnection();
@@ -87,7 +70,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Login function
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     setError(null);
@@ -101,26 +83,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (response.success) {
         const userData = response.data.user;
         
-        // NORMALISASI ROLE: jika role === 'anggota', ubah menjadi 'member'
+        // Role dari backend: admin, ketua, bendahara, sekretaris, anggota
         if (userData.role) {
           if (typeof userData.role === 'object') {
-            if (userData.role.name === 'anggota') {
-              userData.role.name = 'member';
-              console.log('Role normalized: anggota -> member');
-            }
+            console.log('User role from backend:', userData.role.name);
             userData.roleName = userData.role.name;
-          } else if (userData.role === 'anggota') {
-            userData.role = 'member';
-            userData.roleName = 'member';
-            console.log('Role normalized: anggota -> member');
           } else {
             userData.roleName = userData.role;
           }
         }
-        
-        // Pastikan user memiliki role yang valid
-        const finalRole = userData.role?.name || userData.role || 'member';
-        console.log('Final user role:', finalRole);
         
         setUser(userData);
         console.log('User set in context:', userData);
@@ -138,7 +109,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Logout function
   const logout = async () => {
     setIsLoading(true);
     setError(null);
@@ -155,31 +125,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Toggle dark mode
   const toggleDarkMode = () => {
     setIsDarkMode(prev => !prev);
   };
 
-  const value = {
-    user,
-    isAuthenticated: !!user,
-    login,
-    logout,
-    isLoading,
-    error,
-    isDarkMode,
-    toggleDarkMode,
-    testBackendConnection
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ 
+      user, 
+      isAuthenticated: !!user, 
+      login, 
+      logout, 
+      isLoading,
+      error,
+      isDarkMode, 
+      toggleDarkMode,
+      testBackendConnection
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Custom hook to use auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

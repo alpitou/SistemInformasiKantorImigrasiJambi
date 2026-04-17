@@ -30,8 +30,8 @@ const AuditLog = lazy(() => import('./pages/admin/AuditLog'));
 const AdminSettings = lazy(() => import('./pages/admin/Settings'));
 
 // Role definitions
-const MEMBER_ROLES = ['member', 'anggota'];
-const ADMIN_ROLES = ['admin', 'ketua', 'sekretaris', 'bendahara', 'pengawas'];
+const MEMBER_ROLES = ['anggota'];  // Hanya 'anggota' untuk member
+const ADMIN_ROLES = ['admin', 'ketua', 'bendahara', 'sekretaris'];  // Semua role admin
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-neutral-900">
@@ -54,18 +54,25 @@ const ProtectedRoute: React.FC<{
     return <Navigate to="/login" replace />;
   }
   
-  let userRole = user?.role?.name || user?.role || 'member';
+  let userRole = user?.role?.name || user?.role || 'anggota';
   if (userRole === 'anggota') {
     userRole = 'member';
   }
   
-  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
-    const isMember = MEMBER_ROLES.includes(userRole);
-    const defaultRoute = isMember ? '/member' : '/admin';
-    return <Navigate to={defaultRoute} replace />;
+  // Jika tidak ada allowedRoles, izinkan semua
+  if (!allowedRoles || allowedRoles.length === 0) {
+    return <>{children}</>;
   }
   
-  return <>{children}</>;
+  // Cek apakah user role termasuk dalam allowedRoles
+  if (allowedRoles.includes(userRole)) {
+    return <>{children}</>;
+  }
+  
+  // Redirect jika tidak memiliki akses
+  const isMember = MEMBER_ROLES.includes(userRole);
+  const defaultRoute = isMember ? '/member' : '/admin';
+  return <Navigate to={defaultRoute} replace />;
 };
 
 const AppContent: React.FC = () => {
@@ -93,9 +100,9 @@ const AppContent: React.FC = () => {
           isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <LoginPage />
         } />
         
-        {/* PERUBAHAN PENTING: Layout membungkus semua route yang membutuhkan sidebar */}
+        {/* Layout membungkus semua route yang membutuhkan sidebar */}
         <Route element={<Layout />}>
-          {/* Member Routes */}
+          {/* Member Routes - hanya untuk role member */}
           <Route path="/member" element={
             <ProtectedRoute allowedRoles={['member']}>
               <MemberDashboard />
@@ -138,70 +145,63 @@ const AppContent: React.FC = () => {
             </ProtectedRoute>
           } />
           
-          {/* Admin Routes */}
+          {/* Admin Routes - untuk semua role admin */}
           <Route path="/admin" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
               <AdminDashboard />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/members" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin', 'ketua', 'sekretaris']}>
               <MemberManagement />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/financial" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin', 'ketua', 'bendahara']}>
               <FinancialManagement />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/approvals" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin', 'ketua', 'bendahara']}>
               <Approvals />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/loan-archives" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin', 'ketua', 'sekretaris', 'pengawas']}>
               <LoanArchives />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/deductions" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin', 'bendahara']}>
               <DeductionExport />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/documents" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin', 'ketua', 'sekretaris']}>
               <AdminDocuments />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/reports" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
               <Reports />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/audit" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin', 'pengawas']}>
               <AuditLog />
             </ProtectedRoute>
           } />
           
           <Route path="/admin/settings" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminSettings />
-            </ProtectedRoute>
-          } />
-          
-          {/* Settings Route (common) */}
-          <Route path="/settings" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
               <AdminSettings />
             </ProtectedRoute>
           } />

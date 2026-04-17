@@ -1,6 +1,5 @@
 // src/services/api.ts
 import axios from 'axios';
-import { User } from '../types';
 
 const API_URL = 'http://127.0.0.1:8000/api';
 
@@ -44,6 +43,11 @@ api.interceptors.response.use(
       data: error.response?.data,
       message: error.message
     });
+    
+    if (error.response?.status === 422) {
+      console.error('Validation errors:', error.response?.data?.errors);
+      console.error('Validation message:', error.response?.data?.message);
+    }
     
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
@@ -110,14 +114,6 @@ export const authService = {
   },
 };
 
-// Role Service
-//export const roleService = {
-//  getRoles: async () => {
-//    const response = await api.get('/roles');
-//    return response;
-//  },
-//};
-
 // User Service
 export const userService = {
   getUsers: async (page = 1, perPage = 15) => {
@@ -131,12 +127,42 @@ export const userService = {
   },
 
   createUser: async (data: any) => {
-    const response = await api.post('/users', data);
+    const cleanData = { ...data };
+    
+    if (!cleanData.password) {
+      delete cleanData.password;
+      delete cleanData.password_confirmation;
+    }
+    
+    delete cleanData.id;
+    delete cleanData.created_at;
+    delete cleanData.updated_at;
+    delete cleanData.deleted_at;
+    delete cleanData.role;
+    
+    console.log('Create user - cleaned data:', cleanData);
+    const response = await api.post('/users', cleanData);
     return response;
   },
 
   updateUser: async (id: number, data: any) => {
-    const response = await api.put(`/users/${id}`, data);
+    const cleanData = { ...data };
+    
+    delete cleanData.id;
+    delete cleanData.created_at;
+    delete cleanData.updated_at;
+    delete cleanData.deleted_at;
+    delete cleanData.role;
+    delete cleanData.password_confirmation;
+    
+    Object.keys(cleanData).forEach(key => {
+      if (cleanData[key] === undefined) {
+        delete cleanData[key];
+      }
+    });
+    
+    console.log('Update user - cleaned data:', cleanData);
+    const response = await api.put(`/users/${id}`, cleanData);
     return response;
   },
 

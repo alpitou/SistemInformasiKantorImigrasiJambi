@@ -36,16 +36,29 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Ambil role dengan benar
-  const userRole = user?.role?.name || user?.role || 'member';
+  const userRole = user?.role?.name || user?.role || 'anggota';
   
-  // Cek apakah user adalah admin
   const isAdminRole = () => {
-    const adminRoles = ['admin', 'ketua', 'sekretaris', 'bendahara', 'pengawas'];
+    const adminRoles = ['admin', 'ketua', 'bendahara', 'sekretaris'];
     return adminRoles.includes(userRole);
   };
 
-  // Menu untuk Member
+  const getAllAdminMenus = () => {
+    const menus = [
+      { icon: LayoutDashboard, label: 'Dashboard Admin', path: '/admin', roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
+      { icon: Users, label: 'Manajemen Anggota', path: '/admin/members', roles: ['admin', 'ketua', 'sekretaris'] },
+      { icon: Wallet, label: 'Manajemen Keuangan', path: '/admin/financial', roles: ['admin', 'ketua', 'bendahara'] },
+      { icon: ShieldCheck, label: 'Persetujuan', path: '/admin/approvals', roles: ['admin', 'ketua', 'bendahara'] },
+      { icon: Archive, label: 'Arsip Perjanjian', path: '/admin/loan-archives', roles: ['admin', 'ketua', 'sekretaris'] },
+      { icon: FileSpreadsheet, label: 'Ekspor Potongan', path: '/admin/deductions', roles: ['admin', 'bendahara'] },
+      { icon: FileText, label: 'Upload Dokumen', path: '/admin/documents', roles: ['admin', 'ketua', 'sekretaris'] },
+      { icon: FileText, label: 'Laporan', path: '/admin/reports', roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
+      { icon: Archive, label: 'Audit Log', path: '/admin/audit', roles: ['admin'] },
+      { icon: Settings, label: 'Pengaturan', path: '/admin/settings', roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
+    ];
+    return menus.filter(menu => menu.roles.includes(userRole));
+  };
+
   const memberNavItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/member', end: true },
     { icon: Wallet, label: 'Simpanan', path: '/member/savings' },
@@ -56,29 +69,8 @@ const Layout: React.FC = () => {
     { icon: UserIcon, label: 'Profil', path: '/member/profile' },
   ];
 
-  // Menu untuk Admin
-  const adminNavItems = [
-    { icon: LayoutDashboard, label: 'Dashboard Admin', path: '/admin', end: true },
-    { icon: Users, label: 'Manajemen Anggota', path: '/admin/members' },
-    { icon: Wallet, label: 'Manajemen Keuangan', path: '/admin/financial' },
-    { icon: ShieldCheck, label: 'Persetujuan', path: '/admin/approvals' },
-    { icon: Archive, label: 'Arsip Perjanjian', path: '/admin/loan-archives' },
-    { icon: FileSpreadsheet, label: 'Ekspor Potongan', path: '/admin/deductions' },
-    { icon: FileText, label: 'Upload Dokumen', path: '/admin/documents' },
-    { icon: FileText, label: 'Laporan', path: '/admin/reports' },
-    { icon: Archive, label: 'Audit Log', path: '/admin/audit' },
-    { icon: Settings, label: 'Pengaturan', path: '/admin/settings' },
-  ];
+  const navItems = isAdminRole() ? getAllAdminMenus() : memberNavItems;
 
-  const navItems = isAdminRole() ? adminNavItems : memberNavItems;
-
-  // Debug log
-  console.log('Layout - User:', user);
-  console.log('Layout - User Role:', userRole);
-  console.log('Layout - Is Admin:', isAdminRole());
-  console.log('Layout - Nav Items:', navItems.map(item => item.label));
-
-  // Simulasi notifikasi untuk admin
   useEffect(() => {
     if (isAdminRole()) {
       const timer = setTimeout(() => {
@@ -374,7 +366,7 @@ const Layout: React.FC = () => {
           </div>
         </header>
 
-        {/* Content Area - Outlet untuk nested routes */}
+        {/* Content Area */}
         <div className="p-4 md:p-8 flex-1">
           <Outlet />
         </div>
