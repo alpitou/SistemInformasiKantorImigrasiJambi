@@ -22,20 +22,31 @@ class LoanController extends Controller
             
             $query = Loan::with(['user', 'treasurerApprover', 'chairmanApprover', 'disburser']);
 
-            if ($role === 'bendahara') {
-                $query->where(function($q) {
-                    $q->where('status', 'pending_treasurer')
-                      ->where('document_status', 'uploaded');
-                })->orWhere('status', 'approved');
-            } 
-            elseif ($role === 'ketua') {
-                $query->where('status', 'pending_chairman');
-            } 
-            elseif ($role === 'admin') {
-                // Admin melihat semua
-            } 
-            else {
-                $query->where('user_id', $user->id);
+            $isArchive = $request->get('archive', false);
+            
+            if ($isArchive) {
+                if (in_array($role, ['admin', 'ketua', 'bendahara', 'sekretaris'])) {
+                    $query->whereIn('status', ['active', 'approved', 'completed', 'rejected']);
+                } elseif ($role === 'anggota') {
+                    $query->where('user_id', $user->id)
+                          ->whereIn('status', ['active', 'completed', 'rejected']);
+                }
+            } else {
+                if ($role === 'bendahara') {
+                    $query->where(function($q) {
+                        $q->where('status', 'pending_treasurer')
+                          ->where('document_status', 'uploaded');
+                    })->orWhere('status', 'approved');
+                } 
+                elseif ($role === 'ketua') {
+                    $query->where('status', 'pending_chairman');
+                } 
+                elseif ($role === 'admin') {
+                    $query->whereIn('status', ['pending_treasurer', 'pending_chairman', 'approved']);
+                } 
+                else {
+                    $query->where('user_id', $user->id);
+                }
             }
 
             $loans = $query->orderBy('created_at', 'desc')->paginate(15);

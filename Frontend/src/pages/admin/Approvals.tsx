@@ -188,7 +188,23 @@ const ApprovalsPage: React.FC = () => {
     );
   };
 
+  const canApprove = (loan: LoanData) => {
+    if (userRole === 'admin') return false;
+    if (userRole === 'bendahara' && loan.status === 'pending_treasurer' && loan.document_status === 'uploaded') return true;
+    if (userRole === 'ketua' && loan.status === 'pending_chairman') return true;
+    if (userRole === 'bendahara' && loan.status === 'approved') return true;
+    return false;
+  };
+
   const getActionButton = (loan: LoanData) => {
+    if (userRole === 'admin') {
+      return (
+        <div className="text-[10px] font-bold text-gray-400 italic bg-gray-50 dark:bg-neutral-800 px-4 py-2 rounded-xl">
+          Mode Monitoring
+        </div>
+      );
+    }
+    
     if (userRole === 'bendahara' && loan.status === 'pending_treasurer' && loan.document_status === 'uploaded') {
       return (
         <button 
@@ -225,7 +241,11 @@ const ApprovalsPage: React.FC = () => {
       );
     }
     
-    return null;
+    return (
+      <div className="text-[10px] font-bold text-gray-400 italic bg-gray-50 dark:bg-neutral-800 px-4 py-2 rounded-xl">
+        Menunggu Tahap Selanjutnya
+      </div>
+    );
   };
 
   const filteredLoans = loans.filter(loan => {
@@ -234,6 +254,9 @@ const ApprovalsPage: React.FC = () => {
     }
     if (userRole === 'ketua') {
       return loan.status === 'pending_chairman';
+    }
+    if (userRole === 'admin') {
+      return ['pending_treasurer', 'pending_chairman', 'approved'].includes(loan.status);
     }
     return true;
   });
@@ -247,7 +270,7 @@ const ApprovalsPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {userRole === 'bendahara' ? 'Persetujuan Bendahara' : userRole === 'ketua' ? 'Persetujuan Ketua' : 'Persetujuan Pinjaman'}
+            {userRole === 'bendahara' ? 'Persetujuan Bendahara' : userRole === 'ketua' ? 'Persetujuan Ketua' : 'Monitoring Pinjaman'}
           </h1>
           <p className="text-gray-500 dark:text-gray-400">
             Total pengajuan: {loans.length} | Menunggu: {filteredLoans.length}
@@ -283,7 +306,7 @@ const ApprovalsPage: React.FC = () => {
                   ? 'Belum ada pengajuan pinjaman yang menunggu persetujuan Bendahara.'
                   : userRole === 'ketua'
                   ? 'Belum ada pengajuan pinjaman yang sudah diverifikasi Bendahara.'
-                  : 'Belum ada pengajuan pinjaman.'}
+                  : 'Belum ada pengajuan pinjaman yang perlu dimonitor.'}
               </p>
             </div>
           ) : (
@@ -351,13 +374,15 @@ const ApprovalsPage: React.FC = () => {
                           <FileText size={18} />
                         </button>
                       )}
-                      <button 
-                        onClick={() => handleReject(loan.id)}
-                        disabled={isLoading}
-                        className="px-6 py-2 bg-red-500/10 text-red-600 rounded-xl text-xs font-bold hover:bg-red-500 hover:text-white transition-all"
-                      >
-                        <XCircle size={14} /> Tolak
-                      </button>
+                      {userRole !== 'admin' && (
+                        <button 
+                          onClick={() => handleReject(loan.id)}
+                          disabled={isLoading || !canApprove(loan)}
+                          className="px-6 py-2 bg-red-500/10 text-red-600 rounded-xl text-xs font-bold hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
+                        >
+                          <XCircle size={14} /> Tolak
+                        </button>
+                      )}
                       {getActionButton(loan)}
                     </div>
                   </div>

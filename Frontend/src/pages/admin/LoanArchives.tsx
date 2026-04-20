@@ -6,13 +6,12 @@ import {
   Search, 
   Filter, 
   Download, 
-  Eye, 
   Calendar, 
   User, 
   CheckCircle2,
-  Clock,
   RefreshCw,
-  Archive
+  Archive,
+  XCircle
 } from 'lucide-react';
 import api from '../../services/api';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -39,11 +38,14 @@ const LoanArchives: React.FC = () => {
   const fetchArchives = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get('/loans');
-      const allLoans = response.data.data.data || [];
-      // Filter hanya loan yang statusnya completed atau rejected
+      const response = await api.get('/loans', { params: { archive: true } });
+      const allLoans = response.data?.data?.data || [];
+      
       const filtered = allLoans.filter((loan: any) => 
-        loan.status === 'completed' || loan.status === 'rejected'
+        loan.status === 'completed' || 
+        loan.status === 'rejected' || 
+        loan.status === 'active' ||
+        loan.status === 'approved'
       );
       setArchives(filtered);
     } catch (error) {
@@ -116,6 +118,17 @@ const LoanArchives: React.FC = () => {
     }).format(amount);
   };
 
+  const getStatusLabel = (status: string) => {
+    const statusMap: Record<string, { label: string; className: string }> = {
+      completed: { label: 'Lunas', className: 'bg-green-100 text-green-700' },
+      rejected: { label: 'Ditolak', className: 'bg-red-100 text-red-700' },
+      active: { label: 'Aktif', className: 'bg-blue-100 text-blue-700' },
+      approved: { label: 'Disetujui', className: 'bg-emerald-100 text-emerald-700' }
+    };
+    const s = statusMap[status] || { label: status, className: 'bg-gray-100 text-gray-700' };
+    return <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${s.className}`}>{s.label}</span>;
+  };
+
   const filteredArchives = archives.filter(item => 
     item.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.user?.nip?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -131,7 +144,7 @@ const LoanArchives: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Arsip Perjanjian Pinjaman</h1>
-          <p className="text-gray-500 dark:text-gray-400">Penyimpanan digital dokumen surat perjanjian pinjaman anggota yang sudah selesai.</p>
+          <p className="text-gray-500 dark:text-gray-400">Penyimpanan digital dokumen surat perjanjian pinjaman anggota.</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -143,8 +156,7 @@ const LoanArchives: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="glass-card p-6 rounded-3xl border-l-4 border-blue-500">
           <div className="flex items-center gap-3 mb-2">
             <Archive className="text-blue-500" size={20} />
@@ -155,10 +167,19 @@ const LoanArchives: React.FC = () => {
         <div className="glass-card p-6 rounded-3xl border-l-4 border-emerald-500">
           <div className="flex items-center gap-3 mb-2">
             <CheckCircle2 className="text-emerald-500" size={20} />
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Lunas</span>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Disetujui</span>
           </div>
           <p className="text-2xl font-black text-gray-900 dark:text-white">
-            {archives.filter(a => a.status === 'completed').length}
+            {archives.filter(a => a.status === 'approved').length}
+          </p>
+        </div>
+        <div className="glass-card p-6 rounded-3xl border-l-4 border-green-500">
+          <div className="flex items-center gap-3 mb-2">
+            <CheckCircle2 className="text-green-500" size={20} />
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Aktif / Lunas</span>
+          </div>
+          <p className="text-2xl font-black text-gray-900 dark:text-white">
+            {archives.filter(a => a.status === 'active' || a.status === 'completed').length}
           </p>
         </div>
         <div className="glass-card p-6 rounded-3xl border-l-4 border-red-500">
@@ -172,7 +193,6 @@ const LoanArchives: React.FC = () => {
         </div>
       </div>
 
-      {/* Search & Filter */}
       <div className="glass-card p-4 rounded-3xl flex flex-col md:flex-row gap-4 items-center">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -190,7 +210,6 @@ const LoanArchives: React.FC = () => {
         </button>
       </div>
 
-      {/* Archives Table */}
       <div className="glass-card rounded-[2.5rem] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -227,22 +246,18 @@ const LoanArchives: React.FC = () => {
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {new Date(item.created_at).toLocaleDateString('id-ID')}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        item.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
-                        {item.status === 'completed' ? 'Lunas' : 'Ditolak'}
-                      </span>
-                    </td>
+                    <td className="px-6 py-4">{getStatusLabel(item.status)}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => handleDownloadDocument(item)}
-                          className="p-2 text-gray-400 hover:text-imigrasi-primary transition-colors"
-                          title="Download Dokumen"
-                        >
-                          <Download size={18} />
-                        </button>
+                        {item.agreement_document && (
+                          <button 
+                            onClick={() => handleDownloadDocument(item)}
+                            className="p-2 text-gray-400 hover:text-imigrasi-primary transition-colors"
+                            title="Download Dokumen"
+                          >
+                            <Download size={18} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
