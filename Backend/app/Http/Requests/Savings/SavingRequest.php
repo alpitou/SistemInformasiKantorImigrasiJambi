@@ -1,21 +1,21 @@
 <?php
+// app/Http/Requests/SavingRequest.php
 
-namespace App\Http\Requests\Savings;
+namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
 class SavingRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        $user = $this->user();
-        
-        if ($this->route('user_id')) {
-            return $user->hasAnyRole(['admin', 'bendahara']);
-        }
-        
-        return $user->hasAnyRole(['admin', 'bendahara']) || $user->id == $this->user_id;
-    }
+   public function authorize(): bool
+{
+    $user = $this->user();
+
+    return $user && (
+        $user->hasAnyRole(['admin', 'bendahara']) ||
+        $user->id == $this->input('user_id')
+    );
+}
 
     public function rules(): array
     {
@@ -25,7 +25,9 @@ class SavingRequest extends FormRequest
             'amount' => 'required|numeric|min:1',
             'transaction_type' => 'required|in:deposit,withdrawal',
             'description' => 'nullable|string|max:255',
-            'transaction_date' => 'required|date|before_or_equal:today'
+            'transaction_date' => 'required|date|before_or_equal:today',
+            'proof_image' => 'nullable|string',
+            'verification_status' => 'nullable|string'
         ];
     }
 }

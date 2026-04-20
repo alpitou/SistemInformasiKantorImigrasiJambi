@@ -1,11 +1,9 @@
-// src/pages/member/Savings.tsx
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Wallet, TrendingUp, PieChart, ArrowUpRight, 
   Download, Info, Calendar, RefreshCw, X, CheckCircle2,
-  AlertCircle
+  AlertCircle, Upload, FileText, Trash2
 } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications';
 import { cn } from '../../lib/utils';
@@ -47,7 +45,12 @@ const Savings: React.FC = () => {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [selectedSavingType, setSelectedSavingType] = useState<number>(3);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasUploadedProof, setHasUploadedProof] = useState(false);
+  
+  // State untuk upload file
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [summary, setSummary] = useState<SavingsSummary>({
     Pokok: 0,
@@ -76,12 +79,10 @@ const Savings: React.FC = () => {
       const user = userStr ? JSON.parse(userStr) : null;
       const userId = user?.id || 1;
       
-      // Fix: Gunakan variable yang benar untuk setiap response
       const summaryResponse = await axiosInstance.get(`/savings/summary/${userId}`);
       const transactionsResponse = await axiosInstance.get('/savings');
       const typesResponse = await axiosInstance.get('/saving-types');
       
-      // Set data dari response yang sudah ditangkap
       setSummary(summaryResponse.data.data);
       setTransactions(transactionsResponse.data.data);
       setSavingTypes(typesResponse.data.data);
@@ -94,7 +95,6 @@ const Savings: React.FC = () => {
         type: 'error'
       });
       
-      // Set default values jika error
       setSummary({ Pokok: 0, Wajib: 0, Sukarela: 0, total: 0 });
       setTransactions([]);
       setSavingTypes([]);
@@ -103,11 +103,105 @@ const Savings: React.FC = () => {
     }
   };
 
+  // Fungsi untuk handle upload file
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validasi tipe file
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      addNotification({
+        title: 'Format File Tidak Valid',
+        message: 'Hanya file JPG, PNG, atau PDF yang diperbolehkan.',
+        type: 'error'
+      });
+      return;
+    }
+
+    // Validasi ukuran file (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      addNotification({
+        title: 'Ukuran File Terlalu Besar',
+        message: 'Maksimal ukuran file adalah 5MB.',
+        type: 'error'
+      });
+      return;
+    }
+
+    setUploadedFile(file);
+  };
+
+  const removeFile = () => {
+    setUploadedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadFile = async (): Promise<string | null> => {
+    if (!uploadedFile) return null;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append('proof_image', uploadedFile);
+
+    try {
+      const response = await axiosInstance.post('/savings/upload-proof', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percentCompleted);
+          }
+        }
+      });
+
+      return response.data.data.path;
+    } catch (error: any) {
+      addNotification({
+        title: 'Upload Gagal',
+        message: error.response?.data?.message || 'Gagal mengupload bukti transfer.',
+        type: 'error'
+      });
+      return null;
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
   const handleDeposit = async () => {
-    if (!depositAmount || !hasUploadedProof) return;
+    if (!depositAmount) {
+      addNotification({
+        title: 'Validasi Gagal',
+        message: 'Silakan masukkan jumlah setoran.',
+        type: 'error'
+      });
+      return;
+    }
+
+    if (!uploadedFile) {
+      addNotification({
+        title: 'Validasi Gagal',
+        message: 'Silakan upload bukti transfer terlebih dahulu.',
+        type: 'error'
+      });
+      return;
+    }
     
     setIsSubmitting(true);
+    
     try {
+      // Upload file terlebih dahulu
+      const proofPath = await uploadFile();
+      
+      if (!proofPath) {
+        throw new Error('Gagal mengupload bukti transfer');
+      }
+      
       const userStr = localStorage.getItem('user');
       const user = userStr ? JSON.parse(userStr) : null;
       const userId = user?.id || 1;
@@ -118,7 +212,8 @@ const Savings: React.FC = () => {
         amount: Number(depositAmount),
         transaction_type: 'deposit',
         description: 'Setoran simpanan sukarela via dashboard',
-        transaction_date: new Date().toISOString().split('T')[0]
+        transaction_date: new Date().toISOString().split('T')[0],
+        proof_image: proofPath
       });
       
       await fetchData();
@@ -129,9 +224,14 @@ const Savings: React.FC = () => {
         type: 'success'
       });
       
+      // Reset modal
       setShowDepositModal(false);
       setDepositAmount('');
-      setHasUploadedProof(false);
+      setUploadedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
     } catch (error: any) {
       addNotification({
         title: 'Setoran Gagal',
@@ -196,7 +296,6 @@ const Savings: React.FC = () => {
     setIsLoading(false);
   };
 
-  // Pastikan summary memiliki nilai default
   const savingsTypes = [
     { label: 'Simpanan Pokok', value: summary?.Pokok ?? 0, icon: Wallet, color: 'bg-blue-500', desc: 'Simpanan awal saat menjadi anggota. Hanya bisa diambil saat keluar dari keanggotaan.' },
     { label: 'Simpanan Wajib', value: summary?.Wajib ?? 0, icon: TrendingUp, color: 'bg-emerald-500', desc: 'Simpanan rutin bulanan anggota sebesar Rp 100.000.' },
@@ -229,7 +328,11 @@ const Savings: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowDepositModal(false)}
+              onClick={() => {
+                setShowDepositModal(false);
+                setUploadedFile(null);
+                setDepositAmount('');
+              }}
             />
             <motion.div 
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -239,23 +342,18 @@ const Savings: React.FC = () => {
             >
               <div className="p-6 border-b border-gray-100 dark:border-neutral-700 flex items-center justify-between bg-emerald-500 text-white">
                 <h3 className="font-bold text-xl">Setor Simpanan Sukarela</h3>
-                <button onClick={() => setShowDepositModal(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                <button 
+                  onClick={() => {
+                    setShowDepositModal(false);
+                    setUploadedFile(null);
+                    setDepositAmount('');
+                  }} 
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                >
                   <X size={20} />
                 </button>
               </div>
               <div className="p-8 space-y-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Jenis Simpanan</label>
-                  <select 
-                    value={selectedSavingType}
-                    onChange={(e) => setSelectedSavingType(Number(e.target.value))}
-                    className="w-full px-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
-                  >
-                    {savingTypes.filter(t => t.name === 'Sukarela').map(type => (
-                      <option key={type.id} value={type.id}>{type.name}</option>
-                    ))}
-                  </select>
-                </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Jumlah Setoran (IDR)</label>
                   <div className="relative">
@@ -269,44 +367,89 @@ const Savings: React.FC = () => {
                     />
                   </div>
                 </div>
+                
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Upload Bukti Transfer</label>
-                    <div 
-                      onClick={() => setHasUploadedProof(true)}
-                      className={cn(
-                        "w-full p-8 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all",
-                        hasUploadedProof 
-                        ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-600" 
-                        : "bg-gray-50 dark:bg-neutral-700 border-gray-200 dark:border-neutral-600 text-gray-400 hover:border-imigrasi-accent hover:text-imigrasi-primary"
-                      )}
-                    >
-                      {hasUploadedProof ? (
-                        <>
-                          <CheckCircle2 size={32} />
-                          <span className="text-xs font-bold">Bukti Transfer Berhasil Diunggah</span>
-                        </>
-                      ) : (
-                        <>
-                          <ArrowUpRight size={32} />
-                          <span className="text-xs font-bold">Klik untuk Unggah Bukti Transfer</span>
-                        </>
-                      )}
-                    </div>
+                    
+                    {/* Hidden file input */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/jpg,application/pdf"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    
+                    {/* Upload area */}
+                    {!uploadedFile ? (
+                      <div 
+                        onClick={() => fileInputRef.current?.click()}
+                        className={cn(
+                          "w-full p-8 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-3 cursor-pointer transition-all",
+                          "bg-gray-50 dark:bg-neutral-700 border-gray-200 dark:border-neutral-600 text-gray-400 hover:border-imigrasi-accent hover:text-imigrasi-primary"
+                        )}
+                      >
+                        <Upload size={32} />
+                        <span className="text-xs font-bold text-center">
+                          Klik untuk Upload Bukti Transfer
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          Format: JPG, PNG, PDF (Max 5MB)
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="w-full p-4 bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-500 rounded-2xl">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <FileText size={24} className="text-emerald-600" />
+                            <div>
+                              <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                                {uploadedFile.name}
+                              </p>
+                              <p className="text-[10px] text-emerald-600 dark:text-emerald-500">
+                                {(uploadedFile.size / 1024).toFixed(2)} KB
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={removeFile}
+                            className="p-2 hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={18} className="text-emerald-600" />
+                          </button>
+                        </div>
+                        {isUploading && (
+                          <div className="mt-3">
+                            <div className="h-1 bg-emerald-200 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-emerald-600 transition-all duration-300"
+                                style={{ width: `${uploadProgress}%` }}
+                              />
+                            </div>
+                            <p className="text-[10px] text-emerald-600 mt-1 text-center">
+                              Mengupload... {uploadProgress}%
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
+                
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-900/30">
                   <p className="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
                     * Setoran simpanan sukarela memerlukan verifikasi manual oleh bendahara setelah bukti transfer diunggah.
                   </p>
                 </div>
+                
                 <button 
                   onClick={handleDeposit}
-                  disabled={isSubmitting || !depositAmount || !hasUploadedProof}
+                  disabled={isSubmitting || !depositAmount || !uploadedFile || isUploading}
                   className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 disabled:opacity-70 flex items-center justify-center gap-2"
                 >
-                  {isSubmitting && <RefreshCw size={18} className="animate-spin" />}
-                  {isSubmitting ? 'Memproses...' : 'Konfirmasi Setoran'}
+                  {(isSubmitting || isUploading) && <RefreshCw size={18} className="animate-spin" />}
+                  {isUploading ? 'Mengupload...' : isSubmitting ? 'Memproses...' : 'Konfirmasi Setoran'}
                 </button>
               </div>
             </motion.div>
@@ -314,7 +457,7 @@ const Savings: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Withdrawal Modal */}
+      {/* Withdrawal Modal (sama seperti sebelumnya) */}
       <AnimatePresence>
         {showWithdrawModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -380,6 +523,7 @@ const Savings: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Rest of the component (sama seperti sebelumnya) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Simpanan Saya</h1>
@@ -492,7 +636,7 @@ const Savings: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                      </td>
+                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
                         {new Date(trx.transaction_date).toLocaleDateString('id-ID')}
                       </td>

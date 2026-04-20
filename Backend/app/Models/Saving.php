@@ -14,7 +14,9 @@ class Saving extends Model
         'transaction_type',
         'description',
         'transaction_date',
-        'created_by'
+        'created_by',
+        'proof_image',
+        'verification_status'
     ];
 
     protected $casts = [

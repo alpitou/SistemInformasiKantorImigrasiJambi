@@ -41,4 +41,5 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/savings/{id}', [SavingController::class, 'show']);
     Route::get('/savings/user/{userId}', [SavingController::class, 'getUserSavings']);
     Route::get('/savings/summary/{userId}', [SavingController::class, 'getSummary']);
+    Route::post('/savings/upload-proof', [SavingController::class, 'uploadProof']);
 });
