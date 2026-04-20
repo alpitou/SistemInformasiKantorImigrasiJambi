@@ -62,7 +62,7 @@ class SavingController extends Controller
     {
         $request->validate([
             'user_id' => 'required|exists:users,id',
-            'saving_type_id' => 'required|exists:saving_types,id',
+            'saving_type_id' => 'required|exists:saving_types,id',  
             'amount' => 'required|numeric|min:1',
             'transaction_type' => 'required|in:deposit,withdrawal',
             'description' => 'nullable|string',

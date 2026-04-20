@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Wallet, TrendingUp, PieChart, ArrowUpRight, 
+  Wallet, TrendingUp, PieChart, ArrowUpRight, ArrowDownRight,
   Download, Info, Calendar, RefreshCw, X, CheckCircle2,
   AlertCircle, Upload, FileText, Trash2
 } from 'lucide-react';
