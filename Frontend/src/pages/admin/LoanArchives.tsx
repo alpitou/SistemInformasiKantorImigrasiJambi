@@ -1,41 +1,139 @@
-import React, { useState } from 'react';
+// src/pages/admin/LoanArchives.tsx
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   FileText, 
   Search, 
   Filter, 
   Download, 
-  Eye, 
   Calendar, 
   User, 
   CheckCircle2,
-  Clock,
   RefreshCw,
-  Archive
+  Archive,
+  XCircle
 } from 'lucide-react';
+import api from '../../services/api';
+import { useNotifications } from '../../hooks/useNotifications';
+
+interface LoanArchive {
+  id: number;
+  user: {
+    name: string;
+    nip: string;
+  };
+  amount: number;
+  status: string;
+  created_at: string;
+  agreement_document: string | null;
+  agreement_original_name: string | null;
+}
 
 const LoanArchives: React.FC = () => {
+  const { addNotification } = useNotifications();
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [archives, setArchives] = useState<LoanArchive[]>([]);
 
-  const archives = [
-    { id: 'ARC-001', member: 'Budi Santoso', loanId: 'PJ-2024-001', date: '2024-08-10', status: 'Verified', type: 'Surat Perjanjian' },
-    { id: 'ARC-002', member: 'Siti Aminah', loanId: 'PJ-2024-005', date: '2024-09-15', status: 'Verified', type: 'Surat Perjanjian' },
-    { id: 'ARC-003', member: 'Hendra Wijaya', loanId: 'PJ-2024-012', date: '2024-10-20', status: 'Verified', type: 'Surat Perjanjian' },
-    { id: 'ARC-004', member: 'Dewi Lestari', loanId: 'PJ-2024-018', date: '2024-11-05', status: 'Verified', type: 'Surat Perjanjian' },
-    { id: 'ARC-005', member: 'M. Yusuf', loanId: 'PJ-2024-025', date: '2024-12-12', status: 'Verified', type: 'Surat Perjanjian' },
-  ];
-
-  const filteredArchives = archives.filter(a => 
-    a.member.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    a.loanId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleRefresh = async () => {
+  const fetchArchives = async () => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 800));
-    setIsLoading(false);
+    try {
+      const response = await api.get('/loans', { params: { archive: true } });
+      const allLoans = response.data?.data?.data || [];
+      
+      const filtered = allLoans.filter((loan: any) => 
+        loan.status === 'completed' || 
+        loan.status === 'rejected' || 
+        loan.status === 'active' ||
+        loan.status === 'approved'
+      );
+      setArchives(filtered);
+    } catch (error) {
+      console.error('Failed to fetch archives:', error);
+      addNotification({
+        title: 'Error',
+        message: 'Gagal mengambil data arsip',
+        type: 'error'
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchArchives();
+  }, []);
+
+  const handleRefresh = () => {
+    fetchArchives();
+  };
+
+  const handleDownloadDocument = async (loan: LoanArchive) => {
+    if (!loan.agreement_document) {
+      addNotification({
+        title: 'Info',
+        message: 'Dokumen tidak tersedia',
+        type: 'info'
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await api.get(`/loans/${loan.id}/download-document`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', loan.agreement_original_name || `dokumen_${loan.id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      addNotification({
+        title: 'Berhasil',
+        message: 'Dokumen berhasil diunduh',
+        type: 'success'
+      });
+    } catch (error) {
+      console.error('Failed to download document:', error);
+      addNotification({
+        title: 'Gagal',
+        message: 'Gagal mengunduh dokumen',
+        type: 'error'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const getStatusLabel = (status: string) => {
+    const statusMap: Record<string, { label: string; className: string }> = {
+      completed: { label: 'Lunas', className: 'bg-green-100 text-green-700' },
+      rejected: { label: 'Ditolak', className: 'bg-red-100 text-red-700' },
+      active: { label: 'Aktif', className: 'bg-blue-100 text-blue-700' },
+      approved: { label: 'Disetujui', className: 'bg-emerald-100 text-emerald-700' }
+    };
+    const s = statusMap[status] || { label: status, className: 'bg-gray-100 text-gray-700' };
+    return <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${s.className}`}>{s.label}</span>;
+  };
+
+  const filteredArchives = archives.filter(item => 
+    item.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.user?.nip?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.id.toString().includes(searchTerm)
+  );
 
   return (
     <motion.div 
@@ -55,45 +153,52 @@ const LoanArchives: React.FC = () => {
           >
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
           </button>
-          <button className="flex items-center gap-2 px-6 py-2 bg-imigrasi-primary text-white rounded-xl text-sm font-bold hover:bg-blue-900 transition-colors shadow-lg shadow-imigrasi-primary/20">
-            <Download size={18} />
-            Export Data Arsip
-          </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="glass-card p-6 rounded-3xl border-l-4 border-blue-500">
           <div className="flex items-center gap-3 mb-2">
             <Archive className="text-blue-500" size={20} />
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total Dokumen</span>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total Arsip</span>
           </div>
-          <p className="text-2xl font-black text-gray-900 dark:text-white">124</p>
+          <p className="text-2xl font-black text-gray-900 dark:text-white">{archives.length}</p>
         </div>
         <div className="glass-card p-6 rounded-3xl border-l-4 border-emerald-500">
           <div className="flex items-center gap-3 mb-2">
             <CheckCircle2 className="text-emerald-500" size={20} />
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Terverifikasi</span>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Disetujui</span>
           </div>
-          <p className="text-2xl font-black text-gray-900 dark:text-white">124</p>
+          <p className="text-2xl font-black text-gray-900 dark:text-white">
+            {archives.filter(a => a.status === 'approved').length}
+          </p>
         </div>
-        <div className="glass-card p-6 rounded-3xl border-l-4 border-amber-500">
+        <div className="glass-card p-6 rounded-3xl border-l-4 border-green-500">
           <div className="flex items-center gap-3 mb-2">
-            <Clock className="text-amber-500" size={20} />
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Menunggu Scan</span>
+            <CheckCircle2 className="text-green-500" size={20} />
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Aktif / Lunas</span>
           </div>
-          <p className="text-2xl font-black text-gray-900 dark:text-white">0</p>
+          <p className="text-2xl font-black text-gray-900 dark:text-white">
+            {archives.filter(a => a.status === 'active' || a.status === 'completed').length}
+          </p>
+        </div>
+        <div className="glass-card p-6 rounded-3xl border-l-4 border-red-500">
+          <div className="flex items-center gap-3 mb-2">
+            <XCircle className="text-red-500" size={20} />
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ditolak</span>
+          </div>
+          <p className="text-2xl font-black text-gray-900 dark:text-white">
+            {archives.filter(a => a.status === 'rejected').length}
+          </p>
         </div>
       </div>
 
-      {/* Search & Filter */}
       <div className="glass-card p-4 rounded-3xl flex flex-col md:flex-row gap-4 items-center">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input 
             type="text" 
-            placeholder="Cari nama anggota atau ID pinjaman..." 
+            placeholder="Cari nama anggota, NIP, atau ID pinjaman..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
@@ -105,58 +210,59 @@ const LoanArchives: React.FC = () => {
         </button>
       </div>
 
-      {/* Archives Table */}
       <div className="glass-card rounded-[2.5rem] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gray-50 dark:bg-neutral-800/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
-                <th className="px-6 py-4 font-bold">Dokumen</th>
-                <th className="px-6 py-4 font-bold">Anggota</th>
                 <th className="px-6 py-4 font-bold">ID Pinjaman</th>
-                <th className="px-6 py-4 font-bold">Tanggal Arsip</th>
+                <th className="px-6 py-4 font-bold">Anggota</th>
+                <th className="px-6 py-4 font-bold">NIP</th>
+                <th className="px-6 py-4 font-bold">Jumlah</th>
+                <th className="px-6 py-4 font-bold">Tanggal</th>
+                <th className="px-6 py-4 font-bold">Status</th>
                 <th className="px-6 py-4 font-bold text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
-              {filteredArchives.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg">
-                        <FileText size={20} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">{item.type}</p>
-                        <p className="text-[10px] text-gray-500 font-mono">{item.id}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <User size={14} className="text-gray-400" />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">{item.member}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-mono text-gray-600 dark:text-gray-300">{item.loanId}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-gray-400" />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">{item.date}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button className="p-2 text-gray-400 hover:text-imigrasi-primary transition-colors" title="Lihat Dokumen">
-                        <Eye size={18} />
-                      </button>
-                      <button className="p-2 text-gray-400 hover:text-imigrasi-primary transition-colors" title="Download">
-                        <Download size={18} />
-                      </button>
-                    </div>
+              {filteredArchives.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                    Tidak ada data arsip
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredArchives.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors">
+                    <td className="px-6 py-4 text-sm font-mono text-gray-600 dark:text-gray-300">#{item.id}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <User size={14} className="text-gray-400" />
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{item.user?.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-mono text-gray-500">{item.user?.nip || '-'}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(item.amount)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {new Date(item.created_at).toLocaleDateString('id-ID')}
+                    </td>
+                    <td className="px-6 py-4">{getStatusLabel(item.status)}</td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {item.agreement_document && (
+                          <button 
+                            onClick={() => handleDownloadDocument(item)}
+                            className="p-2 text-gray-400 hover:text-imigrasi-primary transition-colors"
+                            title="Download Dokumen"
+                          >
+                            <Download size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
