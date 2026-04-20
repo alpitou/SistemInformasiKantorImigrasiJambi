@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\SavingController;
+use App\Http\Controllers\Api\SavingTypeController;
 
 Route::get('/test', function() {
     return response()->json([
@@ -25,4 +27,18 @@ Route::middleware(['auth:sanctum', 'role:admin,ketua,sekretaris'])->group(functi
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
     Route::post('/users/{id}/restore', [UserController::class, 'restore']);
+});
+
+// SAVING TYPES (GENERAL)
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/saving-types', [SavingTypeController::class, 'index']);
+    Route::post('/saving-types', [SavingTypeController::class, 'store']);
+    Route::put('/saving-types/{savingType}', [SavingTypeController::class, 'update']);
+    
+    // SAVINGS
+    Route::get('/savings', [SavingController::class, 'index']);
+    Route::post('/savings', [SavingController::class, 'store']);
+    Route::get('/savings/{id}', [SavingController::class, 'show']);
+    Route::get('/savings/user/{userId}', [SavingController::class, 'getUserSavings']);
+    Route::get('/savings/summary/{userId}', [SavingController::class, 'getSummary']);
 });

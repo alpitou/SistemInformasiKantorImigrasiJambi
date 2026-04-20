@@ -1,35 +1,185 @@
-import React, { useState } from 'react';
+// src/pages/member/Savings.tsx
+
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Wallet, TrendingUp, PieChart, ArrowUpRight, ArrowDownRight, Download, Info, Calendar, RefreshCw, X, CheckCircle2 } from 'lucide-react';
-import { DUMMY_SAVINGS, DUMMY_TRANSACTIONS } from '../../constants';
+import { 
+  Wallet, TrendingUp, PieChart, ArrowUpRight, 
+  Download, Info, Calendar, RefreshCw, X, CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications';
 import { cn } from '../../lib/utils';
+import axios from 'axios';
+
+interface SavingType {
+  id: number;
+  name: string;
+  default_amount: number | null;
+}
+
+interface SavingTransaction {
+  id: number;
+  user_id: number;
+  saving_type_id: number;
+  amount: number;
+  transaction_type: 'deposit' | 'withdrawal';
+  description: string | null;
+  transaction_date: string;
+  created_by: number;
+  type?: SavingType;
+  creator?: { name: string };
+}
+
+interface SavingsSummary {
+  Pokok: number;
+  Wajib: number;
+  Sukarela: number;
+  total: number;
+}
 
 const Savings: React.FC = () => {
   const { addNotification } = useNotifications();
   const [isLoading, setIsLoading] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
-
+  
   const [depositAmount, setDepositAmount] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [selectedSavingType, setSelectedSavingType] = useState<number>(3);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasUploadedProof, setHasUploadedProof] = useState(false);
+  
+  const [summary, setSummary] = useState<SavingsSummary>({
+    Pokok: 0,
+    Wajib: 0,
+    Sukarela: 0,
+    total: 0
+  });
+  const [transactions, setTransactions] = useState<SavingTransaction[]>([]);
+  const [savingTypes, setSavingTypes] = useState<SavingType[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const token = localStorage.getItem('token');
+  const axiosInstance = axios.create({
+    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?.id || 1;
+      
+      // Fix: Gunakan variable yang benar untuk setiap response
+      const summaryResponse = await axiosInstance.get(`/savings/summary/${userId}`);
+      const transactionsResponse = await axiosInstance.get('/savings');
+      const typesResponse = await axiosInstance.get('/saving-types');
+      
+      // Set data dari response yang sudah ditangkap
+      setSummary(summaryResponse.data.data);
+      setTransactions(transactionsResponse.data.data);
+      setSavingTypes(typesResponse.data.data);
+      
+    } catch (error: any) {
+      console.error('Error fetching savings data:', error);
+      addNotification({
+        title: 'Gagal Memuat Data',
+        message: error.response?.data?.message || 'Terjadi kesalahan saat memuat data simpanan.',
+        type: 'error'
+      });
+      
+      // Set default values jika error
+      setSummary({ Pokok: 0, Wajib: 0, Sukarela: 0, total: 0 });
+      setTransactions([]);
+      setSavingTypes([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDeposit = async () => {
     if (!depositAmount || !hasUploadedProof) return;
+    
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    setShowDepositModal(false);
-    setHasUploadedProof(false);
+    try {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?.id || 1;
+      
+      await axiosInstance.post('/savings', {
+        user_id: userId,
+        saving_type_id: selectedSavingType,
+        amount: Number(depositAmount),
+        transaction_type: 'deposit',
+        description: 'Setoran simpanan sukarela via dashboard',
+        transaction_date: new Date().toISOString().split('T')[0]
+      });
+      
+      await fetchData();
+      
+      addNotification({
+        title: 'Setoran Berhasil',
+        message: `Setoran simpanan sukarela sebesar ${formatCurrency(Number(depositAmount))} telah dicatat dan menunggu verifikasi bendahara.`,
+        type: 'success'
+      });
+      
+      setShowDepositModal(false);
+      setDepositAmount('');
+      setHasUploadedProof(false);
+    } catch (error: any) {
+      addNotification({
+        title: 'Setoran Gagal',
+        message: error.response?.data?.message || 'Terjadi kesalahan saat melakukan setoran.',
+        type: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!withdrawAmount) return;
     
-    addNotification({
-      title: 'Setoran Berhasil',
-      message: `Setoran simpanan sukarela sebesar ${formatCurrency(Number(depositAmount))} telah dicatat dan menunggu verifikasi bendahara.`,
-      type: 'success'
-    });
-    
-    setDepositAmount('');
+    setIsSubmitting(true);
+    try {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?.id || 1;
+      
+      await axiosInstance.post('/savings', {
+        user_id: userId,
+        saving_type_id: selectedSavingType,
+        amount: Number(withdrawAmount),
+        transaction_type: 'withdrawal',
+        description: 'Penarikan simpanan sukarela',
+        transaction_date: new Date().toISOString().split('T')[0]
+      });
+      
+      await fetchData();
+      
+      addNotification({
+        title: 'Penarikan Berhasil',
+        message: `Pengajuan penarikan sebesar ${formatCurrency(Number(withdrawAmount))} telah diproses.`,
+        type: 'success'
+      });
+      
+      setShowWithdrawModal(false);
+      setWithdrawAmount('');
+    } catch (error: any) {
+      addNotification({
+        title: 'Penarikan Gagal',
+        message: error.response?.data?.message || 'Terjadi kesalahan saat melakukan penarikan.',
+        type: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -40,17 +190,29 @@ const Savings: React.FC = () => {
     }).format(amount);
   };
 
-  const savingsTypes = [
-    { label: 'Simpanan Pokok', value: DUMMY_SAVINGS.pokok, icon: Wallet, color: 'bg-blue-500', desc: 'Simpanan awal saat menjadi anggota.' },
-    { label: 'Simpanan Wajib', value: DUMMY_SAVINGS.wajib, icon: TrendingUp, color: 'bg-emerald-500', desc: 'Simpanan rutin bulanan anggota.' },
-    { label: 'Simpanan Sukarela', value: DUMMY_SAVINGS.sukarela, icon: PieChart, color: 'bg-amber-500', desc: 'Simpanan tambahan yang bisa ditarik.' },
-  ];
-
   const handleRefresh = async () => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 800));
+    await fetchData();
     setIsLoading(false);
   };
+
+  // Pastikan summary memiliki nilai default
+  const savingsTypes = [
+    { label: 'Simpanan Pokok', value: summary?.Pokok ?? 0, icon: Wallet, color: 'bg-blue-500', desc: 'Simpanan awal saat menjadi anggota. Hanya bisa diambil saat keluar dari keanggotaan.' },
+    { label: 'Simpanan Wajib', value: summary?.Wajib ?? 0, icon: TrendingUp, color: 'bg-emerald-500', desc: 'Simpanan rutin bulanan anggota sebesar Rp 100.000.' },
+    { label: 'Simpanan Sukarela', value: summary?.Sukarela ?? 0, icon: PieChart, color: 'bg-amber-500', desc: 'Simpanan tambahan yang bisa ditarik sewaktu-waktu.' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <RefreshCw size={40} className="animate-spin text-imigrasi-primary mx-auto mb-4" />
+          <p className="text-gray-500">Memuat data simpanan...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div 
@@ -82,6 +244,18 @@ const Savings: React.FC = () => {
                 </button>
               </div>
               <div className="p-8 space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Jenis Simpanan</label>
+                  <select 
+                    value={selectedSavingType}
+                    onChange={(e) => setSelectedSavingType(Number(e.target.value))}
+                    className="w-full px-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
+                  >
+                    {savingTypes.filter(t => t.name === 'Sukarela').map(type => (
+                      <option key={type.id} value={type.id}>{type.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Jumlah Setoran (IDR)</label>
                   <div className="relative">
@@ -166,7 +340,7 @@ const Savings: React.FC = () => {
               <div className="p-8 space-y-6">
                 <div className="p-4 bg-gray-50 dark:bg-neutral-700/30 rounded-2xl flex justify-between items-center">
                   <span className="text-xs font-bold text-gray-500 uppercase">Saldo Tersedia</span>
-                  <span className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(DUMMY_SAVINGS.sukarela)}</span>
+                  <span className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(summary?.Sukarela ?? 0)}</span>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Jumlah Penarikan (IDR)</label>
@@ -175,17 +349,30 @@ const Savings: React.FC = () => {
                     <input 
                       type="number" 
                       placeholder="Contoh: 50000" 
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
                       className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
                     />
                   </div>
                 </div>
+                {Number(withdrawAmount) > (summary?.Sukarela ?? 0) && withdrawAmount && (
+                  <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-200 dark:border-red-800 flex gap-3">
+                    <AlertCircle size={20} className="text-red-600 shrink-0" />
+                    <p className="text-xs text-red-700 dark:text-red-400">Jumlah penarikan melebihi saldo yang tersedia.</p>
+                  </div>
+                )}
                 <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-900/30">
                   <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
                     * Penarikan akan diproses dalam 1x24 jam kerja. Dana akan ditransfer ke rekening gaji Anda.
                   </p>
                 </div>
-                <button className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20">
-                  Ajukan Penarikan
+                <button 
+                  onClick={handleWithdraw}
+                  disabled={isSubmitting || !withdrawAmount || Number(withdrawAmount) > (summary?.Sukarela ?? 0)}
+                  className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 disabled:opacity-70 flex items-center justify-center gap-2"
+                >
+                  {isSubmitting && <RefreshCw size={18} className="animate-spin" />}
+                  {isSubmitting ? 'Memproses...' : 'Ajukan Penarikan'}
                 </button>
               </div>
             </motion.div>
@@ -218,11 +405,7 @@ const Savings: React.FC = () => {
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
           <div>
             <p className="text-white/60 text-sm font-bold uppercase tracking-widest mb-2">Total Saldo Simpanan</p>
-            <h2 className="text-4xl md:text-5xl font-black">{formatCurrency(DUMMY_SAVINGS.total)}</h2>
-            <div className="mt-4 flex items-center gap-2 text-emerald-400 font-bold text-sm">
-              <TrendingUp size={18} />
-              <span>+ Rp 100.000 bulan ini</span>
-            </div>
+            <h2 className="text-4xl md:text-5xl font-black">{formatCurrency(summary?.total ?? 0)}</h2>
           </div>
           <div className="flex gap-4">
             <button 
@@ -270,40 +453,66 @@ const Savings: React.FC = () => {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-neutral-800/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
-                  <th className="px-6 py-4 font-bold">Keterangan</th>
-                  <th className="px-6 py-4 font-bold">Tanggal</th>
-                  <th className="px-6 py-4 font-bold">Jumlah</th>
-                  <th className="px-6 py-4 font-bold">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
-                {DUMMY_TRANSACTIONS.filter(t => t.type === 'Simpanan').map((trx) => (
-                  <tr key={trx.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-100 text-green-600 rounded-lg">
-                          <ArrowUpRight size={16} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">{trx.category}</p>
-                          <p className="text-[10px] text-gray-500 dark:text-gray-400 font-mono">{trx.id}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{trx.date}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(trx.amount)}</td>
-                    <td className="px-6 py-4">
-                      <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider">
-                        {trx.status}
-                      </span>
-                    </td>
+            {transactions.length === 0 ? (
+              <div className="p-12 text-center">
+                <Wallet size={48} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500">Belum ada aktivitas simpanan</p>
+              </div>
+            ) : (
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-neutral-800/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
+                    <th className="px-6 py-4 font-bold">Keterangan</th>
+                    <th className="px-6 py-4 font-bold">Tanggal</th>
+                    <th className="px-6 py-4 font-bold">Jumlah</th>
+                    <th className="px-6 py-4 font-bold">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
+                  {transactions.map((trx) => (
+                    <tr key={trx.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${
+                            trx.transaction_type === 'deposit' 
+                              ? 'bg-green-100 text-green-600' 
+                              : 'bg-amber-100 text-amber-600'
+                          }`}>
+                            {trx.transaction_type === 'deposit' 
+                              ? <ArrowUpRight size={16} /> 
+                              : <ArrowDownRight size={16} />
+                            }
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">
+                              {trx.transaction_type === 'deposit' ? 'Setoran' : 'Penarikan'} {trx.type?.name || 'Simpanan'}
+                            </p>
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 font-mono">
+                              {trx.description || `Transaksi ${trx.transaction_type === 'deposit' ? 'setoran' : 'penarikan'}`}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                        {new Date(trx.transaction_date).toLocaleDateString('id-ID')}
+                      </td>
+                      <td className={`px-6 py-4 text-sm font-bold ${
+                        trx.transaction_type === 'deposit' 
+                          ? 'text-green-600 dark:text-green-400' 
+                          : 'text-red-600 dark:text-red-400'
+                      }`}>
+                        {trx.transaction_type === 'deposit' ? '+' : '-'}{formatCurrency(trx.amount)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider">
+                          Berhasil
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
