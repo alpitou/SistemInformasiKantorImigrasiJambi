@@ -7,7 +7,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SavingType extends Model
 {
+    protected $table = 'saving_types';
+    
     protected $fillable = ['name', 'default_amount'];
+
+    protected $casts = [
+        'default_amount' => 'decimal:2'
+    ];
 
     public function savings(): HasMany
     {

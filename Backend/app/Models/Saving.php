@@ -1,4 +1,4 @@
-<?php  
+<?php
 
 namespace App\Models;
 
@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Saving extends Model
 {
+    protected $table = 'savings';
+    
     protected $fillable = [
         'user_id',
         'saving_type_id',
@@ -16,12 +18,15 @@ class Saving extends Model
         'transaction_date',
         'created_by',
         'proof_image',
-        'verification_status'
+        'verification_status',
+        'verified_at',
+        'verified_by'
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'transaction_date' => 'date'
+        'transaction_date' => 'date',
+        'verified_at' => 'datetime'
     ];
 
     public function user(): BelongsTo
@@ -37,5 +42,10 @@ class Saving extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function verifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by');
     }
 }

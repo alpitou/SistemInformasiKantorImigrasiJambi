@@ -1,7 +1,8 @@
 // src/services/api.ts
 import axios from 'axios';
 
-const API_URL = 'http://127.0.0.1:8000/api';
+// Gunakan relative path (akan diproxy oleh Vite ke http://127.0.0.1:8000/api)
+const API_URL = '/api';
 
 console.log('API_URL:', API_URL);
 
@@ -12,6 +13,7 @@ const api = axios.create({
     'Accept': 'application/json',
   },
   timeout: 30000,
+  // Tidak perlu withCredentials karena pakai proxy
 });
 
 // Request interceptor
@@ -21,7 +23,7 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, config.data);
+    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },
   (error) => {

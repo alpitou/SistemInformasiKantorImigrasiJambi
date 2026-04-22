@@ -1,29 +1,12 @@
-// src/components/layout/Layout.tsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
 import { 
-  LayoutDashboard, 
-  User as UserIcon, 
-  Wallet, 
-  HandCoins, 
-  History, 
-  FileText, 
-  LogOut, 
-  Menu, 
-  X, 
-  Bell, 
-  Moon, 
-  Sun,
-  ShieldCheck,
-  Users,
-  PieChart,
-  Settings,
-  Archive,
-  FileSpreadsheet
+  LayoutDashboard, User as UserIcon, Wallet, HandCoins, History, FileText, LogOut, Menu, X, Bell, Moon, Sun,
+  ShieldCheck, Users, PieChart, Settings, Archive, FileSpreadsheet, CheckCircle, TrendingUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 
 const Layout: React.FC = () => {
@@ -33,7 +16,6 @@ const Layout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const location = useLocation();
   const navigate = useNavigate();
 
   const userRole = user?.role?.name || user?.role || 'anggota';
@@ -48,7 +30,9 @@ const Layout: React.FC = () => {
       { icon: LayoutDashboard, label: 'Dashboard Admin', path: '/admin', roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
       { icon: Users, label: 'Manajemen Anggota', path: '/admin/members', roles: ['admin', 'ketua', 'sekretaris'] },
       { icon: Wallet, label: 'Manajemen Keuangan', path: '/admin/financial', roles: ['admin', 'ketua', 'bendahara'] },
-      { icon: ShieldCheck, label: 'Persetujuan', path: '/admin/approvals', roles: ['admin', 'ketua', 'bendahara'] },
+      { icon: ShieldCheck, label: 'Persetujuan Pinjaman', path: '/admin/approvals', roles: ['admin', 'ketua', 'bendahara'] },
+      { icon: CheckCircle, label: 'Verifikasi Setoran', path: '/admin/savings-verification', roles: ['admin', 'bendahara'] },
+      { icon: TrendingUp, label: 'Potongan Payroll', path: '/admin/payroll', roles: ['admin', 'bendahara'] },
       { icon: Archive, label: 'Arsip Perjanjian', path: '/admin/loan-archives', roles: ['admin', 'ketua', 'sekretaris'] },
       { icon: FileSpreadsheet, label: 'Ekspor Potongan', path: '/admin/deductions', roles: ['admin', 'bendahara'] },
       { icon: FileText, label: 'Upload Dokumen', path: '/admin/documents', roles: ['admin', 'ketua', 'sekretaris'] },
@@ -72,13 +56,13 @@ const Layout: React.FC = () => {
   const navItems = isAdminRole() ? getAllAdminMenus() : memberNavItems;
 
   useEffect(() => {
-    if (isAdminRole()) {
+    if (isAdminRole() && (userRole === 'bendahara' || userRole === 'ketua' || userRole === 'admin')) {
       const timer = setTimeout(() => {
         const hasNotified = sessionStorage.getItem('admin_notified_pengajuan');
         if (!hasNotified) {
           addNotification({
             title: 'Pengajuan Baru',
-            message: 'Ada 3 pengajuan pinjaman baru yang memerlukan persetujuan Anda.',
+            message: 'Ada pengajuan pinjaman baru yang memerlukan persetujuan Anda.',
             type: 'info',
             link: '/admin/approvals'
           });
@@ -87,11 +71,56 @@ const Layout: React.FC = () => {
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [user, addNotification, isAdminRole]);
+  }, [user, addNotification, isAdminRole, userRole]);
+
+  useEffect(() => {
+    if (userRole === 'bendahara' || userRole === 'admin') {
+      const checkPendingSavings = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) return;
+          
+          const response = await fetch('/api/savings?status=pending', {
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (!response.ok) return;
+          
+          const data = await response.json();
+          if (data.success && data.data && data.data.length > 0) {
+            const pendingCount = data.data.filter(
+              (s: any) => s.transaction_type === 'deposit' && s.verification_status === 'pending'
+            ).length;
+            
+            if (pendingCount > 0) {
+              const notifiedKey = `savings_notified_${new Date().toDateString()}`;
+              if (!sessionStorage.getItem(notifiedKey)) {
+                addNotification({
+                  title: 'Setoran Menunggu Verifikasi',
+                  message: `Terdapat ${pendingCount} setoran sukarela yang menunggu verifikasi Anda.`,
+                  type: 'warning',
+                  link: '/admin/savings-verification'
+                });
+                sessionStorage.setItem(notifiedKey, 'true');
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error checking pending savings:', error);
+        }
+      };
+      
+      checkPendingSavings();
+      const interval = setInterval(checkPendingSavings, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [userRole, addNotification]);
 
   return (
     <div className="min-h-screen flex bg-imigrasi-neutral-light dark:bg-neutral-900">
-      {/* Sidebar Desktop */}
       <motion.aside 
         initial={false}
         animate={{ width: isSidebarOpen ? 280 : 80 }}
@@ -137,7 +166,7 @@ const Layout: React.FC = () => {
               to={item.path}
               end={item.end}
               className={({ isActive }) => cn(
-                "w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200 group",
+                "w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200 group relative",
                 isActive 
                 ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent shadow-[0_0_20px_rgba(212,175,55,0.1)]" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg") 
                 : (isDarkMode ? "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-900" : "text-white/70 hover:text-white hover:bg-white/10")
@@ -150,7 +179,6 @@ const Layout: React.FC = () => {
         </nav>
       </motion.aside>
 
-      {/* Mobile Menu Overlay */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div 
@@ -163,7 +191,6 @@ const Layout: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Sidebar Mobile */}
       <motion.aside
         initial={{ x: '-100%' }}
         animate={{ x: isMobileMenuOpen ? 0 : '-100%' }}
@@ -208,15 +235,10 @@ const Layout: React.FC = () => {
         </nav>
       </motion.aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">
-        {/* Navbar */}
         <header className="h-20 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="md:hidden p-2 text-gray-600 dark:text-gray-300"
-            >
+            <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 text-gray-600 dark:text-gray-300">
               <Menu size={24} />
             </button>
             <div className="hidden md:block">
@@ -226,17 +248,12 @@ const Layout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
-            <button 
-              onClick={toggleDarkMode}
-              className="p-2.5 rounded-full bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors"
-            >
+            <button onClick={toggleDarkMode} className="p-2.5 rounded-full bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors">
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
+            
             <div className="relative">
-              <button 
-                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                className="p-2.5 rounded-full bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors relative"
-              >
+              <button onClick={() => setIsNotificationOpen(!isNotificationOpen)} className="p-2.5 rounded-full bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors relative">
                 <Bell size={20} />
                 {unreadCount > 0 && (
                   <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-neutral-800"></span>
@@ -261,10 +278,7 @@ const Layout: React.FC = () => {
                     >
                       <div className="p-4 border-b border-gray-100 dark:border-neutral-700 flex items-center justify-between">
                         <h4 className="font-bold text-gray-900 dark:text-white">Notifikasi</h4>
-                        <button 
-                          onClick={markAllAsRead}
-                          className="text-[10px] font-bold text-imigrasi-primary dark:text-imigrasi-accent uppercase tracking-widest"
-                        >
+                        <button onClick={markAllAsRead} className="text-[10px] font-bold text-imigrasi-primary dark:text-imigrasi-accent uppercase tracking-widest">
                           Tandai Semua Dibaca
                         </button>
                       </div>
@@ -303,16 +317,10 @@ const Layout: React.FC = () => {
                 )}
               </AnimatePresence>
             </div>
+
             <div className="flex items-center gap-3 pl-4 border-l border-gray-200 dark:border-neutral-700 relative">
-              <button 
-                onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-neutral-700/50 p-1 rounded-xl transition-colors"
-              >
-                <img 
-                  src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`} 
-                  alt={user?.name} 
-                  className="w-10 h-10 rounded-full border-2 border-imigrasi-accent shadow-sm"
-                />
+              <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-neutral-700/50 p-1 rounded-xl transition-colors">
+                <img src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`} alt={user?.name} className="w-10 h-10 rounded-full border-2 border-imigrasi-accent shadow-sm" />
                 <div className="hidden sm:block text-left">
                   <p className="text-sm font-bold text-gray-900 dark:text-white leading-none">{user?.name || 'User'}</p>
                   <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 font-mono">{user?.nip || '-'}</p>
@@ -339,23 +347,15 @@ const Layout: React.FC = () => {
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Akun Saya</p>
                       </div>
                       <div className="p-2 space-y-1">
-                        <button 
-                          onClick={() => {
-                            navigate(isAdminRole() ? '/admin/settings' : '/member/profile');
-                            setIsProfileOpen(false);
-                          }}
-                          className="w-full flex items-center gap-3 p-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors"
-                        >
-                          <UserIcon size={18} />
-                          Profil Saya
+                        <button onClick={() => {
+                          navigate(isAdminRole() ? '/admin/settings' : '/member/profile');
+                          setIsProfileOpen(false);
+                        }} className="w-full flex items-center gap-3 p-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors">
+                          <UserIcon size={18} /> Profil Saya
                         </button>
                         <div className="h-px bg-gray-100 dark:bg-neutral-700 my-1" />
-                        <button 
-                          onClick={logout}
-                          className="w-full flex items-center gap-3 p-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
-                        >
-                          <LogOut size={18} />
-                          Logout
+                        <button onClick={logout} className="w-full flex items-center gap-3 p-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors">
+                          <LogOut size={18} /> Logout
                         </button>
                       </div>
                     </motion.div>
@@ -366,7 +366,6 @@ const Layout: React.FC = () => {
           </div>
         </header>
 
-        {/* Content Area */}
         <div className="p-4 md:p-8 flex-1">
           <Outlet />
         </div>

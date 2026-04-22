@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+// src/pages/member/Savings.tsx
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Wallet, TrendingUp, PieChart, ArrowUpRight, ArrowDownRight,
   Download, Info, Calendar, RefreshCw, X, CheckCircle2,
-  AlertCircle, Upload, FileText, Trash2
+  AlertCircle, Upload, FileText, Trash2, Clock
 } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications';
 import { cn } from '../../lib/utils';
@@ -24,8 +25,10 @@ interface SavingTransaction {
   description: string | null;
   transaction_date: string;
   created_by: number;
+  verification_status: 'pending' | 'verified' | 'rejected';
   type?: SavingType;
   creator?: { name: string };
+  verifier?: { name: string };
 }
 
 interface SavingsSummary {
@@ -40,13 +43,13 @@ const Savings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   
   const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [selectedSavingType, setSelectedSavingType] = useState<number>(3);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // State untuk upload file
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
@@ -61,54 +64,70 @@ const Savings: React.FC = () => {
   const [transactions, setTransactions] = useState<SavingTransaction[]>([]);
   const [savingTypes, setSavingTypes] = useState<SavingType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingDeposits, setPendingDeposits] = useState(0);
 
   const token = localStorage.getItem('token');
-  const axiosInstance = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  
+  // Gunakan baseURL yang benar - sesuaikan dengan konfigurasi Vite proxy
+  const axiosInstance = useMemo(() => {
+    const baseURL = import.meta.env.VITE_API_URL || '/api';
+    console.log('API Base URL:', baseURL);
+    return axios.create({
+      baseURL: baseURL,
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 30000
+    });
+  }, [token]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const userStr = localStorage.getItem('user');
       const user = userStr ? JSON.parse(userStr) : null;
       const userId = user?.id || 1;
       
-      const summaryResponse = await axiosInstance.get(`/savings/summary/${userId}`);
-      const transactionsResponse = await axiosInstance.get('/savings');
-      const typesResponse = await axiosInstance.get('/saving-types');
+      console.log('Fetching data for user:', userId);
+      
+      // Parallel requests for better performance
+      const [summaryResponse, transactionsResponse, typesResponse] = await Promise.all([
+        axiosInstance.get(`/savings/summary/${userId}`),
+        axiosInstance.get('/savings'),
+        axiosInstance.get('/saving-types')
+      ]);
       
       setSummary(summaryResponse.data.data);
       setTransactions(transactionsResponse.data.data);
       setSavingTypes(typesResponse.data.data);
       
+      // Count pending deposits
+      const pending = transactionsResponse.data.data.filter(
+        (t: SavingTransaction) => t.transaction_type === 'deposit' && t.verification_status === 'pending'
+      ).length;
+      setPendingDeposits(pending);
+      
     } catch (error: any) {
       console.error('Error fetching savings data:', error);
+      console.error('Error details:', error.message);
+      console.error('Error config:', error.config);
+      
       addNotification({
         title: 'Gagal Memuat Data',
-        message: error.response?.data?.message || 'Terjadi kesalahan saat memuat data simpanan.',
+        message: error.response?.data?.message || error.message || 'Terjadi kesalahan saat memuat data simpanan.',
         type: 'error'
       });
-      
-      setSummary({ Pokok: 0, Wajib: 0, Sukarela: 0, total: 0 });
-      setTransactions([]);
-      setSavingTypes([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [axiosInstance, addNotification]);
 
-  // Fungsi untuk handle upload file
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validasi tipe file
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
     if (!allowedTypes.includes(file.type)) {
       addNotification({
@@ -119,7 +138,6 @@ const Savings: React.FC = () => {
       return;
     }
 
-    // Validasi ukuran file (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       addNotification({
         title: 'Ukuran File Terlalu Besar',
@@ -161,6 +179,7 @@ const Savings: React.FC = () => {
 
       return response.data.data.path;
     } catch (error: any) {
+      console.error('Upload error:', error);
       addNotification({
         title: 'Upload Gagal',
         message: error.response?.data?.message || 'Gagal mengupload bukti transfer.',
@@ -195,7 +214,6 @@ const Savings: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      // Upload file terlebih dahulu
       const proofPath = await uploadFile();
       
       if (!proofPath) {
@@ -219,12 +237,11 @@ const Savings: React.FC = () => {
       await fetchData();
       
       addNotification({
-        title: 'Setoran Berhasil',
-        message: `Setoran simpanan sukarela sebesar ${formatCurrency(Number(depositAmount))} telah dicatat dan menunggu verifikasi bendahara.`,
+        title: 'Setoran Diajukan',
+        message: `Setoran simpanan sukarela sebesar ${formatCurrency(Number(depositAmount))} telah diajukan dan menunggu verifikasi bendahara.`,
         type: 'success'
       });
       
-      // Reset modal
       setShowDepositModal(false);
       setDepositAmount('');
       setUploadedFile(null);
@@ -233,6 +250,7 @@ const Savings: React.FC = () => {
       }
       
     } catch (error: any) {
+      console.error('Deposit error:', error);
       addNotification({
         title: 'Setoran Gagal',
         message: error.response?.data?.message || 'Terjadi kesalahan saat melakukan setoran.',
@@ -244,7 +262,14 @@ const Savings: React.FC = () => {
   };
 
   const handleWithdraw = async () => {
-    if (!withdrawAmount) return;
+    if (!withdrawAmount) {
+      addNotification({
+        title: 'Validasi Gagal',
+        message: 'Silakan masukkan jumlah penarikan.',
+        type: 'error'
+      });
+      return;
+    }
     
     setIsSubmitting(true);
     try {
@@ -272,6 +297,7 @@ const Savings: React.FC = () => {
       setShowWithdrawModal(false);
       setWithdrawAmount('');
     } catch (error: any) {
+      console.error('Withdraw error:', error);
       addNotification({
         title: 'Penarikan Gagal',
         message: error.response?.data?.message || 'Terjadi kesalahan saat melakukan penarikan.',
@@ -279,6 +305,44 @@ const Savings: React.FC = () => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    setIsDownloading(true);
+    try {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      const userId = user?.id || 1;
+      
+      const response = await axiosInstance.get('/savings/report/download', {
+        params: { user_id: userId },
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `laporan_simpanan_${user?.name || 'saya'}_${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      addNotification({
+        title: 'Download Berhasil',
+        message: 'Laporan simpanan berhasil diunduh.',
+        type: 'success'
+      });
+    } catch (error: any) {
+      console.error('Download error:', error);
+      addNotification({
+        title: 'Download Gagal',
+        message: error.response?.data?.message || 'Gagal mengunduh laporan.',
+        type: 'error'
+      });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -372,7 +436,6 @@ const Savings: React.FC = () => {
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Upload Bukti Transfer</label>
                     
-                    {/* Hidden file input */}
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -381,7 +444,6 @@ const Savings: React.FC = () => {
                       className="hidden"
                     />
                     
-                    {/* Upload area */}
                     {!uploadedFile ? (
                       <div 
                         onClick={() => fileInputRef.current?.click()}
@@ -439,7 +501,7 @@ const Savings: React.FC = () => {
                 
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-900/30">
                   <p className="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
-                    * Setoran simpanan sukarela memerlukan verifikasi manual oleh bendahara setelah bukti transfer diunggah.
+                    * Setoran simpanan sukarela memerlukan verifikasi manual oleh bendahara setelah bukti transfer diunggah. Saldo akan bertambah setelah diverifikasi.
                   </p>
                 </div>
                 
@@ -449,7 +511,7 @@ const Savings: React.FC = () => {
                   className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                   {(isSubmitting || isUploading) && <RefreshCw size={18} className="animate-spin" />}
-                  {isUploading ? 'Mengupload...' : isSubmitting ? 'Memproses...' : 'Konfirmasi Setoran'}
+                  {isUploading ? 'Mengupload...' : isSubmitting ? 'Memproses...' : 'Ajukan Setoran'}
                 </button>
               </div>
             </motion.div>
@@ -457,7 +519,7 @@ const Savings: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Withdrawal Modal (sama seperti sebelumnya) */}
+      {/* Withdrawal Modal */}
       <AnimatePresence>
         {showWithdrawModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -523,21 +585,34 @@ const Savings: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Rest of the component (sama seperti sebelumnya) */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Simpanan Saya</h1>
           <p className="text-gray-500 dark:text-gray-400">Kelola dan pantau pertumbuhan modal Anda di Koperasi.</p>
         </div>
         <div className="flex items-center gap-3">
+          {pendingDeposits > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+              <Clock size={14} className="text-blue-600" />
+              <span className="text-xs font-bold text-blue-700 dark:text-blue-400">
+                {pendingDeposits} setoran menunggu verifikasi
+              </span>
+            </div>
+          )}
           <button 
             onClick={handleRefresh}
             className="p-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl text-gray-500 hover:text-imigrasi-primary transition-colors"
+            disabled={isLoading}
           >
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
           </button>
-          <button className="flex items-center gap-2 px-6 py-2 bg-imigrasi-primary text-white rounded-xl text-sm font-bold hover:bg-blue-900 transition-colors shadow-lg shadow-imigrasi-primary/20">
-            <Download size={18} />
+          <button 
+            onClick={handleDownloadReport}
+            disabled={isDownloading}
+            className="flex items-center gap-2 px-6 py-2 bg-imigrasi-primary text-white rounded-xl text-sm font-bold hover:bg-blue-900 transition-colors shadow-lg shadow-imigrasi-primary/20 disabled:opacity-70"
+          >
+            {isDownloading ? <RefreshCw size={18} className="animate-spin" /> : <Download size={18} />}
             Laporan Simpanan
           </button>
         </div>
@@ -639,19 +714,25 @@ const Savings: React.FC = () => {
                        </td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
                         {new Date(trx.transaction_date).toLocaleDateString('id-ID')}
-                      </td>
+                       </td>
                       <td className={`px-6 py-4 text-sm font-bold ${
                         trx.transaction_type === 'deposit' 
                           ? 'text-green-600 dark:text-green-400' 
                           : 'text-red-600 dark:text-red-400'
                       }`}>
                         {trx.transaction_type === 'deposit' ? '+' : '-'}{formatCurrency(trx.amount)}
-                      </td>
+                        </td>
                       <td className="px-6 py-4">
-                        <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider">
-                          Berhasil
-                        </span>
-                      </td>
+                        {trx.transaction_type === 'deposit' && trx.verification_status === 'pending' ? (
+                          <span className="px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 w-fit">
+                            <Clock size={10} /> Menunggu Verifikasi
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider">
+                            Selesai
+                          </span>
+                        )}
+                        </td>
                     </tr>
                   ))}
                 </tbody>
