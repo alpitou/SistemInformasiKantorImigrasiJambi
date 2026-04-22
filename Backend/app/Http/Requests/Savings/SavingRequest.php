@@ -1,7 +1,7 @@
 <?php
 // app/Http/Requests/SavingRequest.php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\Savings;
 
 use Illuminate\Foundation\Http\FormRequest;
 

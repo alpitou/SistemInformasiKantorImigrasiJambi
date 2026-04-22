@@ -8,25 +8,17 @@ return new class extends Migration {
     {
         Schema::create('savings', function (Blueprint $table) {
             $table->id();
-
-            // relasi ke user
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-
-            // relasi ke jenis simpanan
             $table->foreignId('saving_type_id')->constrained('saving_types')->cascadeOnDelete();
-
             $table->decimal('amount', 15, 2);
-
-            // deposit / withdrawal
             $table->enum('transaction_type', ['deposit', 'withdrawal']);
-
             $table->text('description')->nullable();
-
             $table->date('transaction_date');
-
-            // siapa yang input (admin/bendahara/user)
+            $table->enum('verification_status', ['pending', 'verified', 'rejected']);
+            $table->index(['verification_status', 'transaction_type']);
+            $table->index('transaction_date');
+            $table->index('saving_type_id');
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-
             $table->timestamps();
         });
     }

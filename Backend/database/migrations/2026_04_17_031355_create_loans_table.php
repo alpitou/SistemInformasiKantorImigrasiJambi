@@ -42,6 +42,7 @@ return new class extends Migration
             $table->timestamps();
             
             $table->index('status');
+            $table->index('created_at');
             $table->index('user_id');
         });
     }
