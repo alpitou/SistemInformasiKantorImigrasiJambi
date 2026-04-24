@@ -6,7 +6,7 @@ import {
   ShieldCheck, Users, PieChart, Settings, Archive, FileSpreadsheet, CheckCircle, TrendingUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 
 const Layout: React.FC = () => {
@@ -17,6 +17,7 @@ const Layout: React.FC = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const userRole = user?.role?.name || user?.role || 'anggota';
   
@@ -27,7 +28,7 @@ const Layout: React.FC = () => {
 
   const getAllAdminMenus = () => {
     const menus = [
-      { icon: LayoutDashboard, label: 'Dashboard Admin', path: '/admin', roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
+      { icon: LayoutDashboard, label: 'Dashboard Admin', path: '/admin', end: true, roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
       { icon: Users, label: 'Manajemen Anggota', path: '/admin/members', roles: ['admin', 'ketua', 'sekretaris'] },
       { icon: Wallet, label: 'Manajemen Keuangan', path: '/admin/financial', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: ShieldCheck, label: 'Persetujuan Pinjaman', path: '/admin/approvals', roles: ['admin', 'ketua', 'bendahara'] },
@@ -53,6 +54,18 @@ const Layout: React.FC = () => {
   ];
 
   const navItems = isAdminRole() ? getAllAdminMenus() : memberNavItems;
+
+  // Fungsi untuk mengecek apakah path aktif dengan lebih baik
+  const isPathActive = (itemPath: string, end?: boolean) => {
+    if (end) {
+      return location.pathname === itemPath;
+    }
+    // Untuk menghindari /admin yang selalu match dengan /admin/*
+    if (itemPath === '/admin') {
+      return location.pathname === '/admin';
+    }
+    return location.pathname.startsWith(itemPath);
+  };
 
   useEffect(() => {
     if (isAdminRole() && (userRole === 'bendahara' || userRole === 'ketua' || userRole === 'admin')) {
@@ -128,7 +141,7 @@ const Layout: React.FC = () => {
           isDarkMode ? "bg-neutral-950 border-r border-neutral-800" : "bg-imigrasi-primary text-white"
         )}
       >
-        <div className="p-6 flex items-center justify-between overflow-hidden">
+        <div className="p-6 flex items-center justify-between overflow-hidden shrink-0">
           <AnimatePresence mode="wait">
             {isSidebarOpen && (
               <motion.div 
@@ -150,7 +163,7 @@ const Layout: React.FC = () => {
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className={cn(
-              "p-2 rounded-lg transition-colors",
+              "p-2 rounded-lg transition-colors shrink-0",
               isDarkMode ? "hover:bg-neutral-800 text-neutral-400" : "hover:bg-white/10 text-white"
             )}
           >
@@ -158,23 +171,26 @@ const Layout: React.FC = () => {
           </button>
         </div>
 
-        <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.end}
-              className={({ isActive }) => cn(
-                "w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200 group relative",
-                isActive 
-                ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent shadow-[0_0_20px_rgba(212,175,55,0.1)]" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg") 
-                : (isDarkMode ? "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-900" : "text-white/70 hover:text-white hover:bg-white/10")
-              )}
-            >
-              <item.icon size={22} className="shrink-0" />
-              {isSidebarOpen && <span className="font-medium">{item.label}</span>}
-            </NavLink>
-          ))}
+        {/* Perbaikan scroll di sini */}
+        <nav className="flex-1 px-4 py-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
+          <div className="space-y-2">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.end}
+                className={({ isActive }) => cn(
+                  "w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200 group relative",
+                  isActive 
+                  ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent shadow-[0_0_20px_rgba(212,175,55,0.1)]" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg") 
+                  : (isDarkMode ? "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-900" : "text-white/70 hover:text-white hover:bg-white/10")
+                )}
+              >
+                <item.icon size={22} className="shrink-0" />
+                {isSidebarOpen && <span className="font-medium">{item.label}</span>}
+              </NavLink>
+            ))}
+          </div>
         </nav>
       </motion.aside>
 
@@ -199,7 +215,7 @@ const Layout: React.FC = () => {
           isDarkMode ? "bg-neutral-950 border-r border-neutral-800" : "bg-imigrasi-primary text-white"
         )}
       >
-        <div className="p-6 flex items-center justify-between">
+        <div className="p-6 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-imigrasi-accent rounded-lg flex items-center justify-center font-bold text-imigrasi-primary">
               SIM
@@ -213,29 +229,31 @@ const Layout: React.FC = () => {
             <X size={24} />
           </button>
         </div>
-        <nav className="flex-1 px-4 py-4 space-y-2">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.end}
-              className={({ isActive }) => cn(
-                "w-full flex items-center gap-4 p-4 rounded-xl transition-all",
-                isActive 
-                ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg") 
-                : (isDarkMode ? "text-neutral-500 hover:text-neutral-200" : "text-white/70 hover:text-white")
-              )}
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              <item.icon size={22} />
-              <span className="font-medium">{item.label}</span>
-            </NavLink>
-          ))}
+        <nav className="flex-1 px-4 py-4 overflow-y-auto overflow-x-hidden">
+          <div className="space-y-2">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.end}
+                className={({ isActive }) => cn(
+                  "w-full flex items-center gap-4 p-4 rounded-xl transition-all",
+                  isActive 
+                  ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg") 
+                  : (isDarkMode ? "text-neutral-500 hover:text-neutral-200" : "text-white/70 hover:text-white")
+                )}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <item.icon size={22} />
+                <span className="font-medium">{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
         </nav>
       </motion.aside>
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-20 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20">
+        <header className="h-20 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20 shrink-0">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 text-gray-600 dark:text-gray-300">
               <Menu size={24} />
@@ -365,7 +383,7 @@ const Layout: React.FC = () => {
           </div>
         </header>
 
-        <div className="p-4 md:p-8 flex-1">
+        <div className="p-4 md:p-8 flex-1 overflow-y-auto">
           <Outlet />
         </div>
       </main>

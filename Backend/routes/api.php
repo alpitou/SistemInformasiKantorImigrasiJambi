@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\SavingTypeController;
 use App\Http\Controllers\Api\FileController;
 use App\Http\Controllers\API\ActivityLogController;
 use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\DashboardController;
 
 Route::get('/test', function() {
     return response()->json([
@@ -141,4 +142,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/report/rekening-koran/{userId}', [ReportController::class, 'generateRekeningKoran']);
     });
+
+    Route::middleware(['auth:sanctum'])->group(function () {
+        Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
+        Route::get('/dashboard/chart', [DashboardController::class, 'getChartData']);
+        Route::get('/dashboard/saving-composition', [DashboardController::class, 'getSavingComposition']);
+        Route::get('/dashboard/recent-activities', [DashboardController::class, 'getRecentActivities']);
+        Route::get('/dashboard/quick-links', [DashboardController::class, 'getQuickLinks']);
+        Route::post('/dashboard/clear-cache', [DashboardController::class, 'clearCache']);
+        Route::get('/dashboard', [DashboardController::class, 'index']);
+    });        
 });
