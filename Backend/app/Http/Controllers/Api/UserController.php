@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class UserController extends Controller
 {
@@ -32,7 +33,7 @@ class UserController extends Controller
     public function store(Request $request)
     {
         try {
-            $validator = validator($request->all(), [
+            $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'email' => 'required|email|unique:users,email',
                 'password' => 'required|string|min:4',
@@ -42,7 +43,10 @@ class UserController extends Controller
                 'phone' => 'nullable|string',
                 'role_id' => 'required|exists:roles,id',
                 'join_date' => 'required|date',
-                'status' => 'required|in:active,inactive'
+                'status' => 'required|in:active,inactive',
+                'bank_name' => 'nullable|string',
+                'account_number' => 'nullable|string',
+                'account_name' => 'nullable|string'
             ]);
 
             if ($validator->fails()) {
@@ -63,7 +67,10 @@ class UserController extends Controller
                 'phone' => $validated['phone'] ?? null,
                 'role_id' => $validated['role_id'],
                 'join_date' => $validated['join_date'],
-                'status' => $validated['status']
+                'status' => $validated['status'],
+                'bank_name' => $validated['bank_name'] ?? null,
+                'account_number' => $validated['account_number'] ?? null,
+                'account_name' => $validated['account_name'] ?? null
             ];
 
             if (!empty($validated['nip'])) {
@@ -112,13 +119,9 @@ class UserController extends Controller
             Log::info('Updating user ID: ' . $id);
             Log::info('Request data:', $request->all());
 
-            // Cari user manual
             $user = User::findOrFail($id);
             
-            Log::info('Current user email: ' . $user->email);
-
-            // Validasi dasar - TANPA validasi unique!
-            $validator = validator($request->all(), [
+            $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'email' => 'required|email',
                 'unit' => 'required|string',
@@ -128,6 +131,9 @@ class UserController extends Controller
                 'status' => 'required|in:active,inactive',
                 'nip' => 'nullable|string',
                 'nik' => 'nullable|string',
+                'bank_name' => 'nullable|string',
+                'account_number' => 'nullable|string',
+                'account_name' => 'nullable|string'
             ]);
 
             if ($validator->fails()) {
@@ -140,7 +146,7 @@ class UserController extends Controller
 
             $validated = $validator->validated();
 
-            // Cek duplicate email secara manual (abaikan user sendiri)
+            // Cek duplicate email secara manual
             if ($validated['email'] !== $user->email) {
                 $existing = User::where('email', $validated['email'])->first();
                 if ($existing) {
@@ -184,18 +190,18 @@ class UserController extends Controller
             $user->role_id = $validated['role_id'];
             $user->join_date = $validated['join_date'];
             $user->status = $validated['status'];
+            $user->bank_name = $validated['bank_name'] ?? null;
+            $user->account_number = $validated['account_number'] ?? null;
+            $user->account_name = $validated['account_name'] ?? null;
             
-            // Handle NIP
             if ($request->has('nip')) {
                 $user->nip = !empty($validated['nip']) ? $validated['nip'] : null;
             }
             
-            // Handle NIK
             if ($request->has('nik')) {
                 $user->nik = !empty($validated['nik']) ? $validated['nik'] : null;
             }
             
-            // Handle password
             if ($request->filled('password')) {
                 $user->password = Hash::make($request->password);
             }
@@ -250,6 +256,133 @@ class UserController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to restore user: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update profile for current authenticated user
+     */
+    public function updateProfile(Request $request)
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+            
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'phone' => 'nullable|string|max:20',
+                'unit' => 'nullable|string|max:255',
+                'bank_name' => 'nullable|string|max:100',
+                'account_number' => 'nullable|string|max:50',
+                'account_name' => 'nullable|string|max:255'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $validated = $validator->validated();
+            
+            // Update only the fields that are provided
+            if (isset($validated['name'])) {
+                $user->name = $validated['name'];
+            }
+            if (array_key_exists('phone', $validated)) {
+                $user->phone = $validated['phone'];
+            }
+            if (array_key_exists('unit', $validated)) {
+                $user->unit = $validated['unit'];
+            }
+            if (array_key_exists('bank_name', $validated)) {
+                $user->bank_name = $validated['bank_name'];
+            }
+            if (array_key_exists('account_number', $validated)) {
+                $user->account_number = $validated['account_number'];
+            }
+            if (array_key_exists('account_name', $validated)) {
+                $user->account_name = $validated['account_name'];
+            }
+            
+            $user->save();
+
+            // Refresh user with role relation
+            $user->load('role');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile updated successfully',
+                'data' => $user
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error updating profile: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update profile: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Change password for current authenticated user
+     */
+    public function changePassword(Request $request)
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+            
+            $validator = Validator::make($request->all(), [
+                'current_password' => 'required|string',
+                'new_password' => 'required|string|min:4',
+                'confirm_password' => 'required|string|same:new_password'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Check current password
+            if (!Hash::check($request->current_password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Current password is incorrect'
+                ], 422);
+            }
+
+            // Update password
+            $user->password = Hash::make($request->new_password);
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Password changed successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error changing password: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to change password: ' . $e->getMessage()
             ], 500);
         }
     }

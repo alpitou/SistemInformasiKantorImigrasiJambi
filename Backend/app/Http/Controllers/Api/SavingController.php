@@ -6,9 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Saving;
 use App\Models\SavingType;
 use App\Models\User;
+use App\Models\Loan;
+use App\Models\LoanInstallment;
+use App\Models\KantinIncome;
+use App\Models\SHU;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
+use Maatwebsite\Excel\Facades\Excel;
 
 class SavingController extends Controller
 {
@@ -43,7 +49,7 @@ class SavingController extends Controller
     {
         $today = now();
         $day = (int) $today->format('d');
-        return $day >= 20 || $day <= 5;
+        return $day >= 25 || $day <= 5;
     }
 
     private function getActivePayrollPeriod()
@@ -72,6 +78,17 @@ class SavingController extends Controller
         }
     }
 
+    private function getNextInstallmentNumber($loanId)
+    {
+        $lastInstallment = LoanInstallment::where('loan_id', $loanId)
+            ->orderBy('installment_number', 'desc')
+            ->first();
+        
+        return $lastInstallment ? $lastInstallment->installment_number + 1 : 1;
+    }
+
+    // ==================== BASIC CRUD ====================
+    
     public function index(Request $request)
     {
         $user = $request->user();
@@ -361,7 +378,6 @@ class SavingController extends Controller
     public function getMembersForPayroll(Request $request)
     {
         try {
-            // Ambil semua anggota (role_id = 5)
             $members = User::where('role_id', 5)->where('status', 'active')->get();
             
             if ($members->isEmpty()) {
@@ -374,30 +390,37 @@ class SavingController extends Controller
             
             $savingTypes = SavingType::whereIn('name', ['Pokok', 'Wajib'])->get();
             $activePeriod = $this->getActivePayrollPeriod();
+            $selectedMonth = $request->query('month', now()->format('Y-m'));
+            $selectedYear = substr($selectedMonth, 0, 4);
+            $selectedMonthNum = substr($selectedMonth, 5, 2);
             
             $result = [];
             foreach ($members as $member) {
                 $hasPaidPokok = false;
                 $pokokType = $savingTypes->firstWhere('name', 'Pokok');
+                $pokokAmount = $pokokType->default_amount ?? 50000;
+                
                 if ($pokokType) {
                     $principalSavings = Saving::where('user_id', $member->id)
                         ->where('saving_type_id', $pokokType->id)
                         ->where('transaction_type', 'deposit')
                         ->where('verification_status', 'verified')
                         ->sum('amount');
-                    $hasPaidPokok = $principalSavings >= ($pokokType->default_amount ?? 50000);
+                    $hasPaidPokok = $principalSavings >= $pokokAmount;
                 }
                 
                 $alreadyProcessed = false;
-                foreach ($savingTypes as $type) {
-                    $existing = Saving::where('user_id', $member->id)
-                        ->where('saving_type_id', $type->id)
-                        ->where('description', 'like', '%' . $activePeriod['name'] . '%')
-                        ->first();
-                    if ($existing) {
-                        $alreadyProcessed = true;
-                        break;
-                    }
+                $wajibType = $savingTypes->firstWhere('name', 'Wajib');
+                $monthName = date('F Y', strtotime($selectedMonth . '-01'));
+                
+                if ($wajibType) {
+                    $existingWajib = Saving::where('user_id', $member->id)
+                        ->where('saving_type_id', $wajibType->id)
+                        ->whereYear('created_at', $selectedYear)
+                        ->whereMonth('created_at', $selectedMonthNum)
+                        ->where('description', 'like', '%' . $monthName . '%')
+                        ->exists();
+                    $alreadyProcessed = $existingWajib;
                 }
                 
                 $memberData = [
@@ -405,8 +428,13 @@ class SavingController extends Controller
                     'name' => $member->name,
                     'nip' => $member->nip ?? '-',
                     'unit' => $member->unit ?? '-',
+                    'join_date' => $member->join_date,
                     'is_old_member' => $hasPaidPokok,
                     'already_processed' => $alreadyProcessed,
+                    'has_active_loan' => false,
+                    'loan_installment' => 0,
+                    'loan_remaining' => 0,
+                    'loan_already_processed' => false,
                     'savings' => []
                 ];
                 
@@ -418,10 +446,16 @@ class SavingController extends Controller
                         $defaultAmount = 0;
                     }
                     
-                    $isProcessed = Saving::where('user_id', $member->id)
-                        ->where('saving_type_id', $type->id)
-                        ->where('description', 'like', '%' . $activePeriod['name'] . '%')
-                        ->exists();
+                    if ($type->name === 'Wajib' && $alreadyProcessed) {
+                        $defaultAmount = 0;
+                    }
+                    
+                    $isProcessed = false;
+                    if ($type->name === 'Wajib') {
+                        $isProcessed = $alreadyProcessed;
+                    } elseif ($type->name === 'Pokok') {
+                        $isProcessed = $hasPaidPokok;
+                    }
                     
                     $memberData['savings'][] = [
                         'type_id' => $type->id,
@@ -430,6 +464,28 @@ class SavingController extends Controller
                         'current_balance' => (float) $balance,
                         'is_processed' => $isProcessed
                     ];
+                }
+                
+                $activeLoan = Loan::where('user_id', $member->id)
+                    ->where('status', 'active')
+                    ->where('remaining_balance', '>', 0)
+                    ->first();
+                
+                if ($activeLoan) {
+                    $memberData['has_active_loan'] = true;
+                    $memberData['loan_installment'] = (float) $activeLoan->monthly_installment;
+                    $memberData['loan_remaining'] = (float) $activeLoan->remaining_balance;
+                    
+                    $loanAlreadyProcessed = LoanInstallment::where('loan_id', $activeLoan->id)
+                        ->where('payment_method', 'potong_gaji')
+                        ->whereYear('payment_date', $selectedYear)
+                        ->whereMonth('payment_date', $selectedMonthNum)
+                        ->exists();
+                    $memberData['loan_already_processed'] = $loanAlreadyProcessed;
+                    
+                    if ($loanAlreadyProcessed) {
+                        $memberData['loan_installment'] = 0;
+                    }
                 }
                 
                 $result[] = $memberData;
@@ -459,46 +515,54 @@ class SavingController extends Controller
     public function getPayrollHistory(Request $request)
     {
         try {
-            $history = Saving::with(['user', 'type', 'creator'])
+            $history = [];
+            
+            $savingHistory = Saving::with(['user', 'type', 'creator'])
                 ->where('description', 'like', 'Potongan payroll%')
                 ->orderBy('created_at', 'desc')
-                ->get()
-                ->groupBy(function($item) {
-                    return date('Y-m', strtotime($item->created_at));
-                });
+                ->get();
             
-            $formattedHistory = [];
-            foreach ($history as $month => $items) {
-                $formattedHistory[$month] = [];
-                foreach ($items as $item) {
-                    $formattedHistory[$month][] = [
-                        'id' => $item->id,
-                        'user_id' => $item->user_id,
-                        'user' => [
-                            'id' => $item->user->id,
-                            'name' => $item->user->name,
-                            'nip' => $item->user->nip ?? '-',
-                            'unit' => $item->user->unit ?? '-'
-                        ],
-                        'saving_type' => [
-                            'id' => $item->type->id,
-                            'name' => $item->type->name
-                        ],
-                        'amount' => $item->amount,
-                        'month' => $month,
-                        'processed_at' => $item->created_at,
-                        'creator' => $item->creator ? $item->creator->name : null
+            foreach ($savingHistory as $item) {
+                $month = date('Y-m', strtotime($item->created_at));
+                $monthName = date('F Y', strtotime($item->created_at));
+                
+                if (!isset($history[$month])) {
+                    $history[$month] = [
+                        'name' => $monthName,
+                        'items' => []
                     ];
                 }
+                
+                $history[$month]['items'][] = [
+                    'id' => $item->id,
+                    'type' => 'saving',
+                    'user_id' => $item->user_id,
+                    'user_name' => $item->user ? $item->user->name : 'System',
+                    'user_nip' => $item->user ? ($item->user->nip ?? '-') : '-',
+                    'user_unit' => $item->user ? ($item->user->unit ?? '-') : '-',
+                    'saving_type' => $item->type ? $item->type->name : '-',
+                    'amount' => (float) $item->amount,
+                    'date' => $item->created_at,
+                    'creator' => $item->creator ? $item->creator->name : null
+                ];
+            }
+            
+            krsort($history);
+            
+            foreach ($history as $month => $data) {
+                usort($history[$month]['items'], function($a, $b) {
+                    return strtotime($b['date']) - strtotime($a['date']);
+                });
             }
             
             return response()->json([
                 'success' => true,
                 'message' => 'Riwayat potongan payroll berhasil diambil',
-                'data' => $formattedHistory
+                'data' => $history
             ]);
             
         } catch (\Exception $e) {
+            \Log::error('Payroll history error: ' . $e->getMessage());
             return response()->json([
                 'success' => true,
                 'message' => 'Riwayat potongan payroll',
@@ -514,60 +578,129 @@ class SavingController extends Controller
             
             $request->validate([
                 'month' => 'required|string',
-                'deductions' => 'required|array'
+                'deductions' => 'array',
+                'process_loan_installments' => 'boolean'
             ]);
             
             $activePeriod = $this->getActivePayrollPeriod();
+            $monthName = $activePeriod['name'];
+            $processLoanInstallments = $request->process_loan_installments ?? true;
+            $selectedMonth = $request->month;
+            $selectedYear = substr($selectedMonth, 0, 4);
+            $selectedMonthNum = substr($selectedMonth, 5, 2);
             
             DB::beginTransaction();
             $processedCount = 0;
             $skippedCount = 0;
+            $loanProcessedCount = 0;
             
-            foreach ($request->deductions as $deduction) {
-                $savingType = SavingType::find($deduction['saving_type_id']);
-                if (!$savingType) {
-                    $skippedCount++;
-                    continue;
+            if (!empty($request->deductions) && is_array($request->deductions)) {
+                foreach ($request->deductions as $deduction) {
+                    $savingType = SavingType::find($deduction['saving_type_id']);
+                    if (!$savingType) {
+                        $skippedCount++;
+                        continue;
+                    }
+                    
+                    $existing = Saving::where('user_id', $deduction['user_id'])
+                        ->where('saving_type_id', $deduction['saving_type_id'])
+                        ->whereYear('created_at', $selectedYear)
+                        ->whereMonth('created_at', $selectedMonthNum)
+                        ->where('description', 'like', "%{$monthName}%")
+                        ->first();
+                    
+                    if ($existing) {
+                        $skippedCount++;
+                        continue;
+                    }
+                    
+                    if ($deduction['amount'] <= 0) {
+                        $skippedCount++;
+                        continue;
+                    }
+                    
+                    Saving::create([
+                        'user_id' => $deduction['user_id'],
+                        'saving_type_id' => $deduction['saving_type_id'],
+                        'amount' => $deduction['amount'],
+                        'transaction_type' => 'deposit',
+                        'description' => "Potongan payroll {$savingType->name} {$monthName}",
+                        'transaction_date' => now(),
+                        'created_by' => $user->id,
+                        'verification_status' => 'verified',
+                        'verified_at' => now(),
+                        'verified_by' => $user->id
+                    ]);
+                    $processedCount++;
                 }
+            }
+            
+            if ($processLoanInstallments) {
+                $activeLoans = Loan::where('status', 'active')
+                    ->where('remaining_balance', '>', 0)
+                    ->get();
                 
-                $monthName = $activePeriod['name'];
-                
-                $existing = Saving::where('user_id', $deduction['user_id'])
-                    ->where('saving_type_id', $deduction['saving_type_id'])
-                    ->where('description', 'like', "%{$monthName}%")
-                    ->first();
-                
-                if ($existing) {
-                    $skippedCount++;
-                    continue;
+                foreach ($activeLoans as $activeLoan) {
+                    $member = User::find($activeLoan->user_id);
+                    if (!$member || $member->status !== 'active') {
+                        continue;
+                    }
+                    
+                    $existingLoanPayment = LoanInstallment::where('loan_id', $activeLoan->id)
+                        ->where('payment_method', 'potong_gaji')
+                        ->whereYear('payment_date', $selectedYear)
+                        ->whereMonth('payment_date', $selectedMonthNum)
+                        ->first();
+                    
+                    if ($existingLoanPayment) {
+                        continue;
+                    }
+                    
+                    $installmentAmount = $activeLoan->monthly_installment;
+                    $nextInstallmentNumber = $this->getNextInstallmentNumber($activeLoan->id);
+                    
+                    LoanInstallment::create([
+                        'loan_id' => $activeLoan->id,
+                        'installment_number' => $nextInstallmentNumber,
+                        'amount_paid' => $installmentAmount,
+                        'payment_date' => now(),
+                        'payment_method' => 'potong_gaji',
+                        'received_by' => $user->id,
+                        'notes' => "Pembayaran angsuran ke-{$nextInstallmentNumber} melalui payroll {$monthName}"
+                    ]);
+                    
+                    $newRemainingBalance = $activeLoan->remaining_balance - $installmentAmount;
+                    
+                    if ($newRemainingBalance <= 0) {
+                        $activeLoan->status = 'completed';
+                        $activeLoan->remaining_balance = 0;
+                    } else {
+                        $activeLoan->remaining_balance = $newRemainingBalance;
+                    }
+                    $activeLoan->save();
+                    
+                    $loanProcessedCount++;
                 }
-                
-                if ($deduction['amount'] <= 0) {
-                    $skippedCount++;
-                    continue;
-                }
-                
-                Saving::create([
-                    'user_id' => $deduction['user_id'],
-                    'saving_type_id' => $deduction['saving_type_id'],
-                    'amount' => $deduction['amount'],
-                    'transaction_type' => 'deposit',
-                    'description' => "Potongan payroll {$savingType->name} {$monthName}",
-                    'transaction_date' => now(),
-                    'created_by' => $user->id,
-                    'verification_status' => 'verified',
-                    'verified_at' => now(),
-                    'verified_by' => $user->id
-                ]);
-                $processedCount++;
             }
             
             DB::commit();
             
-            $message = "{$processedCount} potongan payroll berhasil diproses untuk periode {$monthName}";
-            if ($skippedCount > 0) {
-                $message .= ", {$skippedCount} dilewati";
+            $message = "";
+            if ($processedCount > 0) {
+                $message .= "{$processedCount} potongan simpanan berhasil diproses";
             }
+            if ($loanProcessedCount > 0) {
+                if ($message) $message .= ", ";
+                $message .= "{$loanProcessedCount} angsuran pinjaman dipotong";
+            }
+            if ($skippedCount > 0) {
+                if ($message) $message .= ", ";
+                $message .= "{$skippedCount} dilewati";
+            }
+            if (empty($message)) {
+                $message = "Tidak ada data yang diproses";
+            }
+            $message .= " untuk periode {$monthName}";
             
             return response()->json([
                 'success' => true,
@@ -575,12 +708,14 @@ class SavingController extends Controller
                 'data' => [
                     'processed_count' => $processedCount,
                     'skipped_count' => $skippedCount,
+                    'loan_processed_count' => $loanProcessedCount,
                     'period' => $activePeriod
                 ]
             ]);
             
         } catch (\Exception $e) {
             DB::rollBack();
+            \Log::error('Payroll process error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal memproses: ' . $e->getMessage(),
@@ -593,16 +728,33 @@ class SavingController extends Controller
     {
         try {
             $month = $request->query('month');
+            $allTransactions = [];
             
-            $query = Saving::with(['user', 'type', 'creator'])
+            $savingQuery = Saving::with(['user', 'type', 'creator'])
                 ->where('description', 'like', 'Potongan payroll%');
             
             if ($month) {
-                $monthName = date('F Y', strtotime($month));
-                $query->where('description', 'like', "%{$monthName}%");
+                $savingQuery->whereYear('created_at', substr($month, 0, 4))
+                            ->whereMonth('created_at', substr($month, 5, 2));
             }
             
-            $history = $query->orderBy('created_at', 'desc')->get();
+            $savingHistory = $savingQuery->orderBy('created_at', 'desc')->get();
+            
+            foreach ($savingHistory as $item) {
+                $allTransactions[] = [
+                    'date' => $item->created_at,
+                    'type' => 'Simpanan ' . ($item->type ? $item->type->name : '-'),
+                    'user_name' => $item->user ? $item->user->name : '-',
+                    'user_nip' => $item->user ? ($item->user->nip ?? '-') : '-',
+                    'user_unit' => $item->user ? ($item->user->unit ?? '-') : '-',
+                    'amount' => $item->amount,
+                    'creator' => $item->creator ? $item->creator->name : '-'
+                ];
+            }
+            
+            usort($allTransactions, function($a, $b) {
+                return strtotime($b['date']) - strtotime($a['date']);
+            });
             
             $filename = 'riwayat_potongan_payroll_' . date('Y-m-d') . '.csv';
             if ($month) {
@@ -610,20 +762,24 @@ class SavingController extends Controller
             }
             
             $handle = fopen('php://temp', 'w+');
-            fputs($handle, "\xEF\xBB\xBF");
-            fputcsv($handle, ['No', 'Tanggal', 'Nama Anggota', 'NIP', 'Unit', 'Jenis Simpanan', 'Jumlah', 'Dibuat Oleh']);
+            if ($handle === false) {
+                throw new \Exception('Cannot create temp file');
+            }
+            
+            fwrite($handle, "\xEF\xBB\xBF");
+            fputcsv($handle, ['No', 'Tanggal', 'Jenis Transaksi', 'Nama Anggota', 'NIP', 'Unit', 'Jumlah (Rp)', 'Dibuat Oleh']);
             
             $no = 1;
-            foreach ($history as $item) {
+            foreach ($allTransactions as $item) {
                 fputcsv($handle, [
                     $no,
-                    date('d/m/Y H:i', strtotime($item->created_at)),
-                    $item->user->name ?? '-',
-                    $item->user->nip ?? '-',
-                    $item->user->unit ?? '-',
-                    $item->type->name ?? '-',
-                    'Rp ' . number_format($item->amount, 0, ',', '.'),
-                    $item->creator->name ?? '-'
+                    date('d/m/Y H:i:s', strtotime($item['date'])),
+                    $item['type'],
+                    $item['user_name'],
+                    $item['user_nip'],
+                    $item['user_unit'],
+                    number_format($item['amount'], 0, ',', '.'),
+                    $item['creator']
                 ]);
                 $no++;
             }
@@ -632,16 +788,799 @@ class SavingController extends Controller
             $csvContent = stream_get_contents($handle);
             fclose($handle);
             
+            if ($csvContent === false) {
+                throw new \Exception('Cannot read CSV content');
+            }
+            
             return response($csvContent, 200)
                 ->header('Content-Type', 'text/csv; charset=UTF-8')
-                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"')
+                ->header('Cache-Control', 'private, max-age=0, must-revalidate')
+                ->header('Pragma', 'public');
             
         } catch (\Exception $e) {
+            \Log::error('Export error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal export: ' . $e->getMessage(),
                 'data' => null
             ], 500);
         }
+    }
+
+    // ==================== KANTIN INCOME METHODS ====================
+    
+    public function getKantinIncomes(Request $request)
+    {
+        try {
+            $month = $request->query('month');
+            
+            if (!Schema::hasTable('kantin_incomes')) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Tabel kantin_incomes belum dibuat',
+                    'data' => [],
+                    'total' => 0,
+                    'total_shu' => 0
+                ]);
+            }
+            
+            $query = KantinIncome::with('creator')
+                ->orderBy('income_date', 'desc');
+            
+            if ($month) {
+                $query->whereYear('income_date', substr($month, 0, 4))
+                      ->whereMonth('income_date', substr($month, 5, 2));
+            }
+            
+            $incomes = $query->get();
+            $total = $incomes->sum('amount');
+            $totalShu = $incomes->sum('shu_amount');
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Data pemasukan kantin berhasil diambil',
+                'data' => $incomes,
+                'total' => $total,
+                'total_shu' => $totalShu
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Get Kantin Incomes error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'data' => [],
+                'total' => 0,
+                'total_shu' => 0
+            ]);
+        }
+    }
+    
+    public function storeKantinIncome(Request $request)
+    {
+        try {
+            $request->validate([
+                'income_date' => 'required|date',
+                'description' => 'required|string|max:255',
+                'amount' => 'required|numeric|min:1',
+                'shu_share_percentage' => 'nullable|numeric|min:0|max:100',
+                'payment_method' => 'required|in:cash,transfer',
+                'notes' => 'nullable|string'
+            ]);
+            
+            $percentage = $request->shu_share_percentage ?? 30;
+            $shuAmount = ($request->amount * $percentage) / 100;
+            
+            $income = KantinIncome::create([
+                'income_date' => $request->income_date,
+                'description' => $request->description,
+                'amount' => $request->amount,
+                'shu_share_percentage' => $percentage,
+                'shu_amount' => $shuAmount,
+                'payment_method' => $request->payment_method,
+                'created_by' => $request->user()->id,
+                'notes' => $request->notes
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Pemasukan kantin berhasil ditambahkan',
+                'data' => $income->load('creator')
+            ], 201);
+            
+        } catch (\Exception $e) {
+            \Log::error('Store Kantin Income error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menambahkan: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+    
+    public function updateKantinIncome($id, Request $request)
+    {
+        try {
+            $income = KantinIncome::findOrFail($id);
+            
+            $request->validate([
+                'income_date' => 'required|date',
+                'description' => 'required|string|max:255',
+                'amount' => 'required|numeric|min:1',
+                'shu_share_percentage' => 'nullable|numeric|min:0|max:100',
+                'payment_method' => 'required|in:cash,transfer',
+                'notes' => 'nullable|string'
+            ]);
+            
+            $percentage = $request->shu_share_percentage ?? 30;
+            $shuAmount = ($request->amount * $percentage) / 100;
+            
+            $income->update([
+                'income_date' => $request->income_date,
+                'description' => $request->description,
+                'amount' => $request->amount,
+                'shu_share_percentage' => $percentage,
+                'shu_amount' => $shuAmount,
+                'payment_method' => $request->payment_method,
+                'notes' => $request->notes
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Pemasukan kantin berhasil diupdate',
+                'data' => $income->load('creator')
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Update Kantin Income error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengupdate: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+    
+    public function deleteKantinIncome($id, Request $request)
+    {
+        try {
+            $income = KantinIncome::findOrFail($id);
+            $income->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Pemasukan kantin berhasil dihapus',
+                'data' => null
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Delete Kantin Income error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    // ==================== SHU METHODS ====================
+    
+    public function calculateSHU(Request $request)
+    {
+        try {
+            $year = $request->query('year', date('Y'));
+
+            $totalBunga = 0;
+
+            $installments = LoanInstallment::with('loan')
+                ->whereYear('payment_date', $year)
+                ->get();
+
+            foreach ($installments as $installment) {
+                $loan = $installment->loan;
+                if ($loan) {
+                    $monthlyInterest = ($loan->amount * $loan->interest_rate) / 100;
+                    $totalBunga += $monthlyInterest;
+                }
+            }
+
+            $kantinShu = 0;
+            if (Schema::hasTable('kantin_incomes')) {
+                $kantinShu = KantinIncome::whereYear('income_date', $year)->sum('shu_amount');
+            }
+
+            $biayaOperasional = $totalBunga * 0.20;
+            $totalSHU = ($totalBunga - $biayaOperasional) + $kantinShu;
+
+            if ($totalSHU < 0) $totalSHU = 0;
+
+            $memberShareAmount = $totalSHU * 0.6;
+            $reserveAmount = $totalSHU * 0.4;
+
+            $existingSHU = null;
+            if (Schema::hasTable('shu')) {
+                $existingSHU = SHU::where('year', $year)->first();
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Perhitungan SHU berhasil',
+                'data' => [
+                    'year' => $year,
+                    'total_shu' => $totalSHU,
+                    'interest_income' => $totalBunga,
+                    'operational_cost' => $biayaOperasional,
+                    'kantin_contribution' => $kantinShu,
+                    'member_share_percentage' => 60,
+                    'reserve_percentage' => 40,
+                    'member_share_amount' => $memberShareAmount,
+                    'reserve_amount' => $reserveAmount,
+                    'is_processed' => !is_null($existingSHU)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Calculate SHU error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghitung SHU: ' . $e->getMessage(),
+                'data' => [
+                    'year' => date('Y'),
+                    'total_shu' => 0,
+                    'interest_income' => 0,
+                    'operational_cost' => 0,
+                    'kantin_contribution' => 0,
+                    'member_share_percentage' => 60,
+                    'reserve_percentage' => 40,
+                    'member_share_amount' => 0,
+                    'reserve_amount' => 0,
+                    'is_processed' => false
+                ]
+            ], 200);
+        }
+    }
+    
+    public function processSHU(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            $request->validate([
+                'year' => 'required|integer',
+                'total_shu' => 'required|numeric|min:0',
+                'member_share_percentage' => 'required|numeric|between:0,100',
+                'reserve_percentage' => 'required|numeric|between:0,100',
+                'notes' => 'nullable|string'
+            ]);
+
+            $year = $request->year;
+            $totalSHU = $request->total_shu;
+            $memberPercentage = $request->member_share_percentage;
+            $reservePercentage = $request->reserve_percentage;
+
+            if (Schema::hasTable('shu')) {
+                $existing = SHU::where('year', $year)->first();
+                if ($existing) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'SHU tahun ' . $year . ' sudah pernah diproses',
+                        'data' => null
+                    ], 400);
+                }
+            }
+
+            $memberShareAmount = ($totalSHU * $memberPercentage) / 100;
+            $reserveAmount = ($totalSHU * $reservePercentage) / 100;
+
+            if (Schema::hasTable('shu')) {
+                SHU::create([
+                    'year' => $year,
+                    'total_shu' => $totalSHU,
+                    'member_share_percentage' => $memberPercentage,
+                    'member_share_amount' => $memberShareAmount,
+                    'reserve_percentage' => $reservePercentage,
+                    'reserve_amount' => $reserveAmount,
+                    'kantin_contribution' => $request->kantin_contribution ?? 0,
+                    'interest_income' => $request->interest_income ?? 0,
+                    'operational_cost' => $request->operational_cost ?? 0,
+                    'processed_by' => $user->id,
+                    'processed_at' => now(),
+                    'notes' => $request->notes
+                ]);
+            }
+
+            $members = User::where('role_id', 5)->where('status', 'active')->get();
+            $totalSavings = 0;
+            $memberSavings = [];
+
+            foreach ($members as $member) {
+                $savingBalance = $this->getBalance($member->id);
+                $totalSavings += $savingBalance;
+                $memberSavings[$member->id] = $savingBalance;
+            }
+
+            $sukarelaType = SavingType::where('name', 'Sukarela')->first();
+            $distributedCount = 0;
+
+            DB::beginTransaction();
+
+            foreach ($members as $member) {
+                $memberSaving = $memberSavings[$member->id] ?? 0;
+                $memberSHU = 0;
+
+                if ($totalSavings > 0 && $memberShareAmount > 0) {
+                    $memberSHU = ($memberSaving / $totalSavings) * $memberShareAmount;
+                }
+
+                if ($memberSHU > 0.01) {
+                    Saving::create([
+                        'user_id' => $member->id,
+                        'saving_type_id' => $sukarelaType->id,
+                        'amount' => round($memberSHU, 2),
+                        'transaction_type' => 'deposit',
+                        'description' => "Pembagian SHU tahun buku {$year}",
+                        'transaction_date' => now(),
+                        'created_by' => $user->id,
+                        'verification_status' => 'verified',
+                        'verified_at' => now(),
+                        'verified_by' => $user->id
+                    ]);
+                    $distributedCount++;
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "SHU tahun {$year} sebesar Rp " . number_format($totalSHU, 0, ',', '.') . " berhasil didistribusikan kepada {$distributedCount} anggota",
+                'data' => [
+                    'year' => $year,
+                    'total_shu' => $totalSHU,
+                    'distributed_to' => $distributedCount
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Process SHU error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memproses SHU: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+    
+    public function getSHUHistory(Request $request)
+    {
+        try {
+            $history = SHU::with('processor')
+                ->orderBy('year', 'desc')
+                ->get();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Riwayat SHU berhasil diambil',
+                'data' => $history
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'data' => []
+            ], 500);
+        }
+    }
+
+    // ==================== FINANCIAL MANAGEMENT METHODS ====================
+
+    public function getFinancialSummary(Request $request)
+    {
+        try {
+            $totalSavings = Saving::where('verification_status', 'verified')
+                ->where('transaction_type', 'deposit')
+                ->sum('amount');
+
+            $totalWithdrawals = Saving::where('transaction_type', 'withdrawal')
+                ->sum('amount');
+
+            $totalSavingsBalance = $totalSavings - $totalWithdrawals;
+
+            $activeLoans = Loan::where('status', 'active')->get();
+            $totalActiveLoans = $activeLoans->sum('remaining_balance');
+            $totalLoanAmount = Loan::whereIn('status', ['active', 'approved'])->sum('amount');
+            $totalInstallments = LoanInstallment::sum('amount_paid');
+
+            $totalBunga = 0;
+            $installments = LoanInstallment::with('loan')->get();
+            foreach ($installments as $installment) {
+                $loan = $installment->loan;
+                if ($loan) {
+                    $monthlyInterest = ($loan->amount * $loan->interest_rate) / 100;
+                    $totalBunga += $monthlyInterest;
+                }
+            }
+
+            $biayaOperasional = $totalBunga * 0.20;
+
+            $currentMonth = now()->format('Y-m');
+            $kantinTotal = 0;
+            $kantinTotalShu = 0;
+
+            if (Schema::hasTable('kantin_incomes')) {
+                $kantinTotal = KantinIncome::whereYear('income_date', substr($currentMonth, 0, 4))
+                    ->whereMonth('income_date', substr($currentMonth, 5, 2))
+                    ->sum('amount');
+                $kantinTotalShu = KantinIncome::whereYear('income_date', substr($currentMonth, 0, 4))
+                    ->whereMonth('income_date', substr($currentMonth, 5, 2))
+                    ->sum('shu_amount');
+            }
+
+            $totalSHU = ($totalBunga - $biayaOperasional) + $kantinTotalShu;
+            if ($totalSHU < 0) $totalSHU = 0;
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data keuangan berhasil diambil',
+                'data' => [
+                    'total_cash' => $totalSavingsBalance - $totalActiveLoans,
+                    'total_savings' => $totalSavingsBalance,
+                    'total_loans' => $totalActiveLoans,
+                    'total_loan_amount' => $totalLoanAmount,
+                    'total_installments' => $totalInstallments,
+                    'total_shu' => $totalSHU,
+                    'active_loans_count' => $activeLoans->count(),
+                    'total_members' => User::where('role_id', 5)->count(),
+                    'total_interest_income' => $totalBunga,
+                    'operational_cost' => $biayaOperasional,
+                    'kantin_income' => $kantinTotal,
+                    'kantin_shu' => $kantinTotalShu
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Financial summary error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'data' => [
+                    'total_cash' => 0,
+                    'total_savings' => 0,
+                    'total_loans' => 0,
+                    'total_loan_amount' => 0,
+                    'total_installments' => 0,
+                    'total_shu' => 0,
+                    'active_loans_count' => 0,
+                    'total_members' => 0,
+                    'total_interest_income' => 0,
+                    'operational_cost' => 0,
+                    'kantin_income' => 0,
+                    'kantin_shu' => 0
+                ]
+            ]);
+        }
+    }
+
+    // ==================== TRANSACTION HISTORY (FIXED) ====================
+
+    /**
+     * Get transaction history for the authenticated user
+     * Includes: savings, loan installments, and loan applications
+     */
+    public function getTransactionHistory(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $type = $request->query('type', 'all');
+            $month = $request->query('month');
+            
+            $transactions = [];
+    
+            // =============================================
+            // 1. GET DATA FROM SAVINGS TABLE (Simpanan)
+            // =============================================
+            $savingsQuery = Saving::with(['type', 'user'])
+                ->where('user_id', $user->id);
+            
+            if ($month && $month !== 'all') {
+                $year = substr($month, 0, 4);
+                $monthNum = substr($month, 5, 2);
+                $savingsQuery->whereYear('transaction_date', $year)
+                            ->whereMonth('transaction_date', $monthNum);
+            }
+            
+            $savings = $savingsQuery->orderBy('transaction_date', 'desc')->get();
+            
+            foreach ($savings as $saving) {
+                $isWithdrawal = $saving->transaction_type === 'withdrawal';
+                $typeName = $saving->type ? $saving->type->name : 'Simpanan';
+                $isPayroll = ($typeName === 'Wajib' && strpos($saving->description ?? '', 'gaji') !== false);
+                
+                // Filter by type
+                if ($type !== 'all') {
+                    if ($type === 'withdrawal' && !$isWithdrawal) continue;
+                    if ($type === 'saving' && ($isPayroll || $isWithdrawal)) continue;
+                    if ($type === 'payroll' && !$isPayroll) continue;
+                    if ($type === 'loan_installment' || $type === 'loan') continue;
+                }
+                
+                $transactions[] = [
+                    'id' => 'saving_' . $saving->id,
+                    'original_id' => $saving->id,
+                    'type' => $isWithdrawal ? 'withdrawal' : ($isPayroll ? 'payroll' : 'saving'),
+                    'category' => $typeName,
+                    'title' => $isWithdrawal ? 'Penarikan Sukarela' : ($isPayroll ? 'Potongan Payroll (Wajib)' : 'Setoran Sukarela'),
+                    'description' => $saving->description ?? ($isWithdrawal ? 'Penarikan simpanan sukarela' : 'Setoran simpanan'),
+                    'amount' => (float) $saving->amount,
+                    'date' => $saving->transaction_date,
+                    'user' => $saving->user ? $saving->user->name : 'System',
+                    'status' => $saving->verification_status === 'verified' ? 'success' : 'pending',
+                    'is_income' => !$isWithdrawal && !$isPayroll,
+                    'transaction_type' => $saving->transaction_type,
+                    'verification_status' => $saving->verification_status
+                ];
+            }
+            
+            // =============================================
+            // 2. GET DATA FROM LOAN INSTALLMENTS TABLE (Angsuran Pinjaman)
+            // =============================================
+            $installmentsQuery = LoanInstallment::with(['loan.user'])
+                ->whereHas('loan', function($q) use ($user) {
+                    $q->where('user_id', $user->id);
+                });
+            
+            if ($month && $month !== 'all') {
+                $year = substr($month, 0, 4);
+                $monthNum = substr($month, 5, 2);
+                $installmentsQuery->whereYear('payment_date', $year)
+                                 ->whereMonth('payment_date', $monthNum);
+            }
+            
+            $installments = $installmentsQuery->orderBy('payment_date', 'desc')->get();
+            
+            foreach ($installments as $installment) {
+                $amount = (float) $installment->amount_paid;
+                $paymentMethod = $installment->payment_method === 'potong_gaji' ? 'Potong Gaji' : ($installment->payment_method === 'transfer' ? 'Transfer' : 'Tunai');
+                
+                // Filter by type
+                if ($type !== 'all' && $type !== 'loan_installment') continue;
+                
+                $transactions[] = [
+                    'id' => 'installment_' . $installment->id,
+                    'original_id' => $installment->id,
+                    'type' => 'loan_installment',
+                    'category' => 'Pinjaman',
+                    'title' => 'Angsuran Pinjaman',
+                    'description' => "Pembayaran angsuran ke-{$installment->installment_number} via {$paymentMethod}",
+                    'amount' => $amount,
+                    'date' => $installment->payment_date,
+                    'user' => $installment->loan && $installment->loan->user ? $installment->loan->user->name : 'System',
+                    'status' => 'success',
+                    'is_income' => false,
+                    'transaction_type' => 'installment',
+                    'verification_status' => 'verified',
+                    'payment_method' => $installment->payment_method,
+                    'installment_number' => $installment->installment_number
+                ];
+            }
+            
+            // =============================================
+            // 3. GET DATA FROM LOANS TABLE (Pengajuan Pinjaman)
+            // =============================================
+            $loansQuery = Loan::with(['user'])
+                ->where('user_id', $user->id);
+            
+            if ($month && $month !== 'all') {
+                $year = substr($month, 0, 4);
+                $monthNum = substr($month, 5, 2);
+                $loansQuery->whereYear('created_at', $year)
+                           ->whereMonth('created_at', $monthNum);
+            }
+            
+            $loans = $loansQuery->orderBy('created_at', 'desc')->get();
+            
+            foreach ($loans as $loan) {
+                // Filter by type
+                if ($type !== 'all' && $type !== 'loan') continue;
+                
+                $statusText = '';
+                $statusColor = '';
+                switch($loan->status) {
+                    case 'pending': 
+                        $statusText = 'Menunggu Verifikasi'; 
+                        break;
+                    case 'approved': 
+                        $statusText = 'Disetujui'; 
+                        break;
+                    case 'active': 
+                        $statusText = 'Aktif'; 
+                        break;
+                    case 'rejected': 
+                        $statusText = 'Ditolak'; 
+                        break;
+                    case 'completed': 
+                        $statusText = 'Lunas'; 
+                        break;
+                    default: 
+                        $statusText = $loan->status;
+                }
+                    
+                $transactions[] = [
+                    'id' => 'loan_' . $loan->id,
+                    'original_id' => $loan->id,
+                    'type' => 'loan',
+                    'category' => 'Pinjaman',
+                    'title' => 'Pengajuan Pinjaman',
+                    'description' => "Pengajuan pinjaman Rp " . number_format($loan->amount, 0, ',', '.') . " - {$statusText}",
+                    'amount' => (float) $loan->amount,
+                    'date' => $loan->created_at,
+                    'user' => $loan->user ? $loan->user->name : 'System',
+                    'status' => $loan->status,
+                    'is_income' => false,
+                    'transaction_type' => 'loan',
+                    'verification_status' => $loan->status === 'active' ? 'verified' : 'pending'
+                ];
+            }
+                    
+            // Sort by date (newest first)
+            usort($transactions, function($a, $b) {
+                return strtotime($b['date']) - strtotime($a['date']);
+            });
+                    
+            return response()->json([
+                'success' => true,
+                'message' => 'Riwayat transaksi berhasil diambil',
+                'data' => $transactions,
+                'debug' => [
+                    'savings_count' => $savings->count(),
+                    'installments_count' => $installments->count(),
+                    'loans_count' => $loans->count(),
+                    'total' => count($transactions)
+                ]
+            ]);
+                    
+        } catch (\Exception $e) {
+            \Log::error('Transaction history error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil riwayat transaksi: ' . $e->getMessage(),
+                'data' => []
+            ], 500);
+        }
+    }
+
+    // ==================== EXPORT METHODS ====================
+
+    public function exportTransactionHistory(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $month = $request->get('month', date('Y-m'));
+            $type = $request->get('type', 'all');
+            
+            // Get transactions data
+            $transactions = $this->getTransactionsData($user, $type, $month);
+            
+            if (empty($transactions)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tidak ada data transaksi untuk periode yang dipilih'
+                ], 404);
+            }
+            
+            // Generate filename
+            $monthNames = [
+                '01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April',
+                '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
+                '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'
+            ];
+            $monthNum = date('m', strtotime($month . '-01'));
+            $monthName = $monthNames[$monthNum] ?? $monthNum;
+            $year = date('Y', strtotime($month . '-01'));
+            
+            $fileName = "riwayat_transaksi_" . str_replace(' ', '_', $user->name) . "_" . $monthName . "_" . $year . ".xlsx";
+            
+            // Export to Excel (create simple CSV if Excel not available)
+            $handle = fopen('php://temp', 'w+');
+            fwrite($handle, "\xEF\xBB\xBF");
+            
+            // Headers
+            fputcsv($handle, ['NO', 'TANGGAL', 'JENIS TRANSAKSI', 'KATEGORI', 'DESKRIPSI', 'JUMLAH (Rp)', 'STATUS']);
+            
+            $no = 1;
+            foreach ($transactions as $trx) {
+                $jumlah = $trx['amount'];
+                if (in_array($trx['type'], ['loan_installment', 'withdrawal'])) {
+                    $jumlah = -$trx['amount'];
+                }
+                
+                fputcsv($handle, [
+                    $no++,
+                    date('d/m/Y', strtotime($trx['date'])),
+                    $this->getTransactionTypeName($trx['type']),
+                    $trx['category'] ?? '-',
+                    $trx['description'] ?? '-',
+                    number_format($jumlah, 0, ',', '.'),
+                    $trx['verification_status'] === 'verified' ? 'BERHASIL' : 'PENDING'
+                ]);
+            }
+            
+            rewind($handle);
+            $csvContent = stream_get_contents($handle);
+            fclose($handle);
+            
+            return response($csvContent, 200)
+                ->header('Content-Type', 'text/csv; charset=UTF-8')
+                ->header('Content-Disposition', 'attachment; filename="' . str_replace('.xlsx', '.csv', $fileName) . '"');
+            
+        } catch (\Exception $e) {
+            \Log::error('Export error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengekspor data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    private function getTransactionTypeName($type)
+    {
+        switch($type) {
+            case 'saving': return 'SETORAN SUKARELA';
+            case 'withdrawal': return 'PENARIKAN SUKARELA';
+            case 'payroll': return 'POTONGAN PAYROLL';
+            case 'loan_installment': return 'ANGSURAN PINJAMAN';
+            default: return 'TRANSAKSI LAINNYA';
+        }
+    }
+    
+    private function getTransactionsData($user, $type, $month)
+    {
+        $transactions = [];
+
+        // Get savings data
+        $savingsQuery = Saving::with(['type', 'user'])
+            ->where('user_id', $user->id)
+            ->where(function($q) {
+                $q->where('transaction_type', 'withdrawal')
+                  ->orWhere('verification_status', 'verified');
+            });
+
+        if ($month) {
+            $savingsQuery->whereYear('transaction_date', substr($month, 0, 4))
+                        ->whereMonth('transaction_date', substr($month, 5, 2));
+        }
+
+        $savings = $savingsQuery->get();
+
+        foreach ($savings as $saving) {
+            $isPayroll = ($saving->type && $saving->type->name === 'Wajib' && 
+                         (strpos($saving->description ?? '', 'gaji') !== false || 
+                          strpos($saving->description ?? '', 'payroll') !== false));
+            $isWithdrawal = $saving->transaction_type === 'withdrawal';
+
+            if ($type === 'withdrawal' && !$isWithdrawal) continue;
+            if ($type === 'saving' && ($isPayroll || $isWithdrawal)) continue;
+            if ($type === 'payroll' && !$isPayroll) continue;
+
+            $transactions[] = [
+                'type' => $isWithdrawal ? 'withdrawal' : ($isPayroll ? 'payroll' : 'saving'),
+                'category' => $saving->type ? $saving->type->name : 'Simpanan',
+                'description' => $saving->description ?? ($isWithdrawal ? 'Penarikan simpanan' : 'Setoran simpanan'),
+                'amount' => (float) $saving->amount,
+                'date' => $saving->transaction_date,
+                'user' => $saving->user ? $saving->user->name : 'System',
+                'verification_status' => $saving->verification_status
+            ];
+        }
+
+        // Sort by date
+        usort($transactions, function($a, $b) {
+            return strtotime($b['date']) - strtotime($a['date']);
+        });
+
+        return $transactions;
     }
 }

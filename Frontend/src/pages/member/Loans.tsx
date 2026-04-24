@@ -20,11 +20,22 @@ interface Loan {
   document_status: string;
 }
 
+interface Installment {
+  id: number;
+  loan_id: number;
+  installment_number: number;
+  amount_paid: number;
+  payment_date: string;
+  payment_method: string;
+  notes: string;
+}
+
 const Loans: React.FC = () => {
   const { user } = useAuth();
   const { addNotification } = useNotifications();
   const [isLoading, setIsLoading] = useState(false);
   const [loans, setLoans] = useState<Loan[]>([]);
+  const [installments, setInstallments] = useState<Installment[]>([]);
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
@@ -43,6 +54,14 @@ const Loans: React.FC = () => {
     }).format(amount);
   };
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
   useEffect(() => {
     fetchLoans();
   }, []);
@@ -59,8 +78,26 @@ const Loans: React.FC = () => {
     }
   };
 
+  const fetchInstallments = async (loanId: number) => {
+    setIsLoading(true);
+    try {
+      const response = await api.get(`/loans/${loanId}/installments`);
+      setInstallments(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to fetch installments:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleRefresh = async () => {
     await fetchLoans();
+  };
+
+  const handleViewSchedule = async (loan: Loan) => {
+    setSelectedLoan(loan);
+    await fetchInstallments(loan.id);
+    setShowScheduleModal(true);
   };
 
   const handleSubmitLoan = async () => {
@@ -184,14 +221,6 @@ const Loans: React.FC = () => {
           type: 'success'
         });
         
-        // Submit final loan
-        await api.put(`/loans/${currentLoanId}/approve`, {});
-        addNotification({
-          title: 'Pengajuan Terkirim',
-          message: 'Pengajuan pinjaman Anda telah dikirim dan menunggu verifikasi.',
-          type: 'success'
-        });
-        
         setShowLoanModal(false);
         resetLoanForm();
         fetchLoans();
@@ -227,6 +256,12 @@ const Loans: React.FC = () => {
     };
     const s = statusMap[status] || { label: status, className: 'bg-gray-100 text-gray-700' };
     return <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${s.className}`}>{s.label}</span>;
+  };
+
+  const calculateRemainingInstallments = (loan: Loan) => {
+    const paidInstallments = installments.length;
+    const totalInstallments = loan.tenor_months;
+    return totalInstallments - paidInstallments;
   };
 
   const activeLoan = loans.find(l => l.status === 'active');
@@ -386,6 +421,87 @@ const Loans: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Schedule Modal */}
+      <AnimatePresence>
+        {showScheduleModal && selectedLoan && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowScheduleModal(false)}
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-2xl bg-white dark:bg-neutral-800 rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-gray-100 dark:border-neutral-700 flex items-center justify-between bg-imigrasi-primary text-white">
+                <h3 className="font-bold text-xl">Jadwal Angsuran Pinjaman</h3>
+                <button onClick={() => setShowScheduleModal(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-8 space-y-6 max-h-[80vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 dark:bg-neutral-700/30 rounded-2xl">
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Pinjaman</p>
+                    <p className="font-bold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.amount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Angsuran / Bulan</p>
+                    <p className="font-bold text-gray-900 dark:text-white">{formatCurrency(selectedLoan.monthly_installment)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sisa Pinjaman</p>
+                    <p className="font-bold text-emerald-600">{formatCurrency(selectedLoan.remaining_balance)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sisa Angsuran</p>
+                    <p className="font-bold text-gray-900 dark:text-white">{calculateRemainingInstallments(selectedLoan)} bulan</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-bold text-gray-900 dark:text-white">Riwayat Pembayaran</h4>
+                  {installments.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 dark:bg-neutral-700/30 rounded-2xl">
+                      <p className="text-sm text-gray-500">Belum ada pembayaran angsuran</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {installments.map((installment) => (
+                        <div key={installment.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-neutral-700/30 rounded-xl">
+                          <div>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">
+                              Angsuran ke-{installment.installment_number}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {formatDate(installment.payment_date)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-emerald-600">
+                              {formatCurrency(installment.amount_paid)}
+                            </p>
+                            <p className="text-[10px] text-gray-400 capitalize">
+                              {installment.payment_method === 'potong_gaji' ? 'Potong Gaji' : 
+                               installment.payment_method === 'transfer' ? 'Transfer' : 'Tunai'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -433,10 +549,7 @@ const Loans: React.FC = () => {
                 <span className="font-bold">{formatCurrency(activeLoan.monthly_installment)}</span>
               </div>
               <button 
-                onClick={() => {
-                  setSelectedLoan(activeLoan);
-                  setShowScheduleModal(true);
-                }}
+                onClick={() => handleViewSchedule(activeLoan)}
                 className="w-full py-3 bg-imigrasi-accent text-imigrasi-primary font-bold rounded-xl hover:bg-white transition-colors text-xs"
               >
                 Lihat Jadwal Angsuran
@@ -477,12 +590,13 @@ const Loans: React.FC = () => {
                 <th className="px-6 py-4 font-bold">Angsuran/Bln</th>
                 <th className="px-6 py-4 font-bold">Tanggal</th>
                 <th className="px-6 py-4 font-bold text-center">Status</th>
+                <th className="px-6 py-4 font-bold text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
               {loans.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                     Belum ada riwayat pinjaman
                   </td>
                 </tr>
@@ -494,9 +608,19 @@ const Loans: React.FC = () => {
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{loan.tenor_months} Bln</td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{formatCurrency(loan.monthly_installment)}</td>
                     <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {new Date(loan.created_at).toLocaleDateString('id-ID')}
+                      {formatDate(loan.created_at)}
                     </td>
                     <td className="px-6 py-4 text-center">{getStatusBadge(loan.status)}</td>
+                    <td className="px-6 py-4 text-center">
+                      {loan.status === 'active' && (
+                        <button 
+                          onClick={() => handleViewSchedule(loan)}
+                          className="text-imigrasi-primary hover:text-imigrasi-accent transition-colors"
+                        >
+                          <Eye size={18} />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}

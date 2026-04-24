@@ -32,12 +32,11 @@ const Layout: React.FC = () => {
       { icon: Wallet, label: 'Manajemen Keuangan', path: '/admin/financial', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: ShieldCheck, label: 'Persetujuan Pinjaman', path: '/admin/approvals', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: CheckCircle, label: 'Verifikasi Setoran', path: '/admin/savings-verification', roles: ['admin', 'bendahara'] },
+      { icon: FileSpreadsheet, label: 'Ekspor Potongan', path: '/admin/deductions', roles: ['admin', 'bendahara'] }, // DIPINDAHKAN KE ATAS
       { icon: TrendingUp, label: 'Potongan Payroll', path: '/admin/payroll', roles: ['admin', 'bendahara'] },
       { icon: Archive, label: 'Arsip Perjanjian', path: '/admin/loan-archives', roles: ['admin', 'ketua', 'sekretaris'] },
-      { icon: FileSpreadsheet, label: 'Ekspor Potongan', path: '/admin/deductions', roles: ['admin', 'bendahara'] },
       { icon: FileText, label: 'Upload Dokumen', path: '/admin/documents', roles: ['admin', 'ketua', 'sekretaris'] },
       { icon: FileText, label: 'Laporan', path: '/admin/reports', roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
-      { icon: Archive, label: 'Audit Log', path: '/admin/audit', roles: ['admin'] },
       { icon: Settings, label: 'Pengaturan', path: '/admin/settings', roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
     ];
     return menus.filter(menu => menu.roles.includes(userRole));

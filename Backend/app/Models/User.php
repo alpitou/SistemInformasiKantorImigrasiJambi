@@ -24,7 +24,10 @@ class User extends Authenticatable
         'unit',
         'join_date',
         'phone',
-        'status'
+        'status',
+        'bank_name',
+        'account_number',
+        'account_name'
     ];
 
     protected $hidden = [

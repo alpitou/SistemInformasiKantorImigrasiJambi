@@ -8,6 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (userData: User) => void;
   isLoading: boolean;
   error: string | null;
   isDarkMode: boolean;
@@ -68,6 +69,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Backend connection failed:', error);
       return false;
     }
+  };
+
+  const updateUser = (userData: User) => {
+    setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
+    console.log('User updated:', userData);
   };
 
   const login = async (email: string, password: string) => {
@@ -134,7 +141,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       user, 
       isAuthenticated: !!user, 
       login, 
-      logout, 
+      logout,
+      updateUser,
       isLoading,
       error,
       isDarkMode, 

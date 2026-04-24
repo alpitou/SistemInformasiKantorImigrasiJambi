@@ -1,29 +1,155 @@
-import React, { useState } from 'react';
+// src/pages/member/Profile.tsx
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Mail, Phone, MapPin, Briefcase, Shield, Camera, Save, Lock, Smartphone, ArrowRight, X, Eye, EyeOff, CreditCard } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import api from '../../services/api';
+import { useNotifications } from '../../hooks/useNotifications';
 
 const Profile: React.FC = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
+  const { addNotification } = useNotifications();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
+  // Form data states
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    unit: '',
+    bank_name: '',
+    account_number: '',
+    account_name: ''
+  });
+
+  // Password form states
+  const [passwordData, setPasswordData] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: ''
+  });
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name || '',
+        phone: user.phone || '',
+        unit: user.unit || '',
+        bank_name: user.bank_name || '',
+        account_number: user.account_number || '',
+        account_name: user.account_name || user.name || ''
+      });
+    }
+  }, [user]);
+
+  // Fetch fresh user data from API
+  const fetchUserData = async () => {
+    try {
+      const userId = user?.id;
+      if (!userId) return;
+      
+      const response = await api.get(`/users/${userId}`);
+      if (response.data.success) {
+        const freshUser = response.data.data;
+        updateUser(freshUser);
+        setFormData({
+          name: freshUser.name || '',
+          phone: freshUser.phone || '',
+          unit: freshUser.unit || '',
+          bank_name: freshUser.bank_name || '',
+          account_number: freshUser.account_number || '',
+          account_name: freshUser.account_name || freshUser.name || ''
+        });
+      }
+    } catch (error: any) {
+      console.error('Error fetching user data:', error);
+    }
+  };
+
   const handleUpdatePassword = async () => {
+    if (passwordData.new_password !== passwordData.confirm_password) {
+      addNotification({
+        title: 'Validasi Gagal',
+        message: 'Password baru dan konfirmasi password tidak cocok.',
+        type: 'error'
+      });
+      return;
+    }
+
+    if (passwordData.new_password.length < 4) {
+      addNotification({
+        title: 'Validasi Gagal',
+        message: 'Password minimal 4 karakter.',
+        type: 'error'
+      });
+      return;
+    }
+
     setIsUpdatingPassword(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsUpdatingPassword(false);
-    setShowPasswordModal(false);
+    try {
+      const response = await api.post('/users/profile/change-password', {
+        current_password: passwordData.current_password,
+        new_password: passwordData.new_password,
+        confirm_password: passwordData.confirm_password
+      });
+
+      if (response.data.success) {
+        addNotification({
+          title: 'Berhasil',
+          message: 'Password berhasil diubah.',
+          type: 'success'
+        });
+        setShowPasswordModal(false);
+        setPasswordData({
+          current_password: '',
+          new_password: '',
+          confirm_password: ''
+        });
+      }
+    } catch (error: any) {
+      addNotification({
+        title: 'Gagal',
+        message: error.response?.data?.message || 'Gagal mengubah password.',
+        type: 'error'
+      });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
   const handleSave = async () => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsLoading(false);
-    setIsEditing(false);
+    try {
+      // Use PUT method to update profile
+      const response = await api.put('/users/profile/update', formData);
+      
+      if (response.data.success) {
+        const updatedUser = response.data.data;
+        updateUser(updatedUser);
+        
+        addNotification({
+          title: 'Berhasil',
+          message: 'Profil berhasil diperbarui.',
+          type: 'success'
+        });
+        
+        setIsEditing(false);
+        await fetchUserData();
+      }
+    } catch (error: any) {
+      console.error('Update profile error:', error);
+      addNotification({
+        title: 'Gagal',
+        message: error.response?.data?.message || 'Gagal memperbarui profil.',
+        type: 'error'
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!user) return null;
@@ -49,7 +175,10 @@ const Profile: React.FC = () => {
         ) : (
           <div className="flex items-center gap-3">
             <button 
-              onClick={() => setIsEditing(false)}
+              onClick={() => {
+                setIsEditing(false);
+                fetchUserData();
+              }}
               className="px-6 py-2 bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
             >
               Batal
@@ -96,16 +225,8 @@ const Profile: React.FC = () => {
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input 
                       type={showPassword ? "text" : "password"}
-                      className="w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Password Baru</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                      type={showPassword ? "text" : "password"}
+                      value={passwordData.current_password}
+                      onChange={(e) => setPasswordData({...passwordData, current_password: e.target.value})}
                       className="w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
                     />
                     <button 
@@ -117,18 +238,38 @@ const Profile: React.FC = () => {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Konfirmasi Password Baru</label>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Password Baru</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input 
                       type={showPassword ? "text" : "password"}
+                      value={passwordData.new_password}
+                      onChange={(e) => setPasswordData({...passwordData, new_password: e.target.value})}
                       className="w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
                     />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Konfirmasi Password Baru</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input 
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={passwordData.confirm_password}
+                      onChange={(e) => setPasswordData({...passwordData, confirm_password: e.target.value})}
+                      className="w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
+                    />
+                    <button 
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-imigrasi-primary transition-colors"
+                    >
+                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
                 <button 
                   onClick={handleUpdatePassword}
-                  disabled={isUpdatingPassword}
+                  disabled={isUpdatingPassword || !passwordData.current_password || !passwordData.new_password || !passwordData.confirm_password}
                   className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                   {isUpdatingPassword && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
@@ -158,7 +299,7 @@ const Profile: React.FC = () => {
                   </button>
                 )}
               </div>
-              <h2 className="mt-6 text-xl font-bold text-gray-900 dark:text-white">{user.name}</h2>
+              <h2 className="mt-6 text-xl font-bold text-gray-900 dark:text-white">{formData.name}</h2>
               <p className="text-sm font-mono text-gray-500 mt-1">{user.nip}</p>
               <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
                 <Shield size={12} />
@@ -199,7 +340,8 @@ const Profile: React.FC = () => {
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input 
                     type="text" 
-                    defaultValue={user.name}
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
                     disabled={!isEditing}
                     className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
                   />
@@ -211,7 +353,7 @@ const Profile: React.FC = () => {
                   <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input 
                     type="text" 
-                    defaultValue={user.nip}
+                    value={user.nip}
                     disabled
                     className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent rounded-2xl outline-none dark:text-white opacity-60"
                   />
@@ -223,9 +365,9 @@ const Profile: React.FC = () => {
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input 
                     type="email" 
-                    defaultValue={`${user.name.toLowerCase().replace(' ', '.')}@imigrasi.go.id`}
-                    disabled={!isEditing}
-                    className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
+                    value={user.email}
+                    disabled
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent rounded-2xl outline-none dark:text-white opacity-60"
                   />
                 </div>
               </div>
@@ -235,7 +377,8 @@ const Profile: React.FC = () => {
                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input 
                     type="tel" 
-                    defaultValue="081234567890"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     disabled={!isEditing}
                     className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
                   />
@@ -249,7 +392,8 @@ const Profile: React.FC = () => {
                 <MapPin className="absolute left-4 top-4 text-gray-400" size={18} />
                 <textarea 
                   rows={2}
-                  defaultValue={user.unitKerja}
+                  value={formData.unit}
+                  onChange={(e) => setFormData({...formData, unit: e.target.value})}
                   disabled={!isEditing}
                   className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60 resize-none"
                 />
@@ -265,8 +409,10 @@ const Profile: React.FC = () => {
                     <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input 
                       type="text" 
-                      defaultValue={user.bankName || 'Bank Mandiri'}
+                      value={formData.bank_name}
+                      onChange={(e) => setFormData({...formData, bank_name: e.target.value})}
                       disabled={!isEditing}
+                      placeholder="Contoh: Bank Mandiri, BCA, BRI"
                       className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
                     />
                   </div>
@@ -277,8 +423,10 @@ const Profile: React.FC = () => {
                     <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input 
                       type="text" 
-                      defaultValue={user.bankAccountNumber || '1234567890'}
+                      value={formData.account_number}
+                      onChange={(e) => setFormData({...formData, account_number: e.target.value})}
                       disabled={!isEditing}
+                      placeholder="Masukkan nomor rekening"
                       className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
                     />
                   </div>
@@ -289,8 +437,10 @@ const Profile: React.FC = () => {
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input 
                       type="text" 
-                      defaultValue={user.bankAccountName || user.name}
+                      value={formData.account_name}
+                      onChange={(e) => setFormData({...formData, account_name: e.target.value})}
                       disabled={!isEditing}
+                      placeholder="Nama sesuai rekening"
                       className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
                     />
                   </div>
@@ -305,6 +455,7 @@ const Profile: React.FC = () => {
               <h4 className="font-bold text-blue-900 dark:text-blue-400">Informasi Keanggotaan</h4>
               <p className="text-sm text-blue-800 dark:text-blue-500/80 mt-1 leading-relaxed">
                 Anda terdaftar sebagai anggota aktif sejak Januari 2020. Pastikan data profil Anda selalu mutakhir untuk kelancaran administrasi koperasi.
+                Data rekening akan digunakan untuk proses penarikan simpanan.
               </p>
             </div>
           </div>

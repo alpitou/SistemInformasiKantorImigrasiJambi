@@ -1,4 +1,5 @@
 <?php
+// routes/api.php
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
@@ -8,6 +9,8 @@ use App\Http\Controllers\Api\LoanInstallmentController;
 use App\Http\Controllers\Api\SavingController;
 use App\Http\Controllers\Api\SavingTypeController;
 use App\Http\Controllers\Api\FileController;
+use App\Http\Controllers\API\ActivityLogController;
+use App\Http\Controllers\Api\ReportController;
 
 Route::get('/test', function() {
     return response()->json([
@@ -24,6 +27,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     
+    // LOAN ROUTES
     Route::get('/loans', [LoanController::class, 'index']);
     Route::post('/loans', [LoanController::class, 'store']);
     Route::get('/loans/{id}', [LoanController::class, 'show']);
@@ -39,6 +43,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/loans/{id}/reject', [LoanController::class, 'reject']);
     });
     
+    // FILES ROUTES
     Route::get('/files', [FileController::class, 'index']);
     Route::get('/files/{file}', [FileController::class, 'show']);
     Route::get('/files/download/{file}', [FileController::class, 'download']);
@@ -48,6 +53,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/files/{file}', [FileController::class, 'destroy']);
     });
     
+    // USER ROUTES
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/users', [UserController::class, 'index']);
         Route::post('/users', [UserController::class, 'store']);
@@ -55,13 +61,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/users/{id}', [UserController::class, 'update']);
         Route::delete('/users/{id}', [UserController::class, 'destroy']);
         Route::post('/users/{id}/restore', [UserController::class, 'restore']);
+        
+        // PROFILE ROUTES - update current user's profile
+        Route::put('/users/profile/update', [UserController::class, 'updateProfile']);
+        Route::post('/users/profile/change-password', [UserController::class, 'changePassword']);
     });
     
+    // LOAN INSTALLMENT ROUTES
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/installments', [LoanInstallmentController::class, 'store']);
         Route::get('/loans/{loanId}/installments', [LoanInstallmentController::class, 'index']);
     });
     
+    // SAVING TYPES ROUTES
     Route::get('/saving-types', [SavingTypeController::class, 'index']);
     
     Route::middleware(['auth:sanctum'])->group(function () {
@@ -69,6 +81,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/saving-types/{savingType}', [SavingTypeController::class, 'update']);
     });
     
+    // SAVINGS ROUTES
     Route::get('/savings', [SavingController::class, 'index']);
     Route::post('/savings', [SavingController::class, 'store']);
     Route::get('/savings/{id}', [SavingController::class, 'show']);
@@ -76,6 +89,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/savings/summary/{userId}', [SavingController::class, 'getSummary']);
     Route::post('/savings/upload-proof', [SavingController::class, 'uploadProof']);
     Route::get('/savings/report/download', [SavingController::class, 'downloadReport']);
+    
+    // EXPORT TRANSACTION HISTORY
+    Route::get('/savings/transactions/export', [SavingController::class, 'exportTransactionHistory']);
     
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/savings/{id}/verify', [SavingController::class, 'verifyDeposit']);
@@ -88,5 +104,41 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/savings/payroll/history', [SavingController::class, 'getPayrollHistory']);
         Route::post('/savings/payroll/process', [SavingController::class, 'processPayrollDeductions']);
         Route::get('/savings/payroll/export', [SavingController::class, 'exportPayrollHistory']);
+    });
+    
+    // SHU ROUTES
+    Route::middleware(['auth:sanctum'])->group(function () {
+        Route::get('/savings/financial/shu/calculate', [SavingController::class, 'calculateSHU']);
+        Route::post('/savings/financial/shu/process', [SavingController::class, 'processSHU']);
+        Route::get('/savings/financial/shu/history', [SavingController::class, 'getSHUHistory']);
+    });
+    
+    // KANTIN INCOME ROUTES
+    Route::middleware(['auth:sanctum'])->group(function () {
+        Route::get('/savings/kantin/incomes', [SavingController::class, 'getKantinIncomes']);
+        Route::post('/savings/kantin/incomes', [SavingController::class, 'storeKantinIncome']);
+        Route::put('/savings/kantin/incomes/{id}', [SavingController::class, 'updateKantinIncome']);
+        Route::delete('/savings/kantin/incomes/{id}', [SavingController::class, 'deleteKantinIncome']);
+    });
+    
+    // FINANCIAL MANAGEMENT ROUTES
+    Route::middleware(['auth:sanctum'])->group(function () {
+        Route::get('/savings/financial/summary', [SavingController::class, 'getFinancialSummary']);
+        Route::get('/savings/financial/transactions', [SavingController::class, 'getTransactionHistory']);
+    });
+    
+    // ==============================================
+    // ACTIVITY LOG ROUTES (FIXED ORDER)
+    // ==============================================
+    Route::middleware(['role:admin,ketua,pengawas'])->prefix('activity-logs')->group(function () {
+        Route::get('/actions', [ActivityLogController::class, 'getActions']);
+        Route::get('/export', [ActivityLogController::class, 'export']);
+        Route::get('/', [ActivityLogController::class, 'index']);
+        Route::get('/{id}', [ActivityLogController::class, 'show']);
+    });
+    
+    // REPORT ROUTES
+    Route::middleware(['auth:sanctum'])->group(function () {
+        Route::get('/report/rekening-koran/{userId}', [ReportController::class, 'generateRekeningKoran']);
     });
 });
