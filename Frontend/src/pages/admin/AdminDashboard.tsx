@@ -61,81 +61,35 @@ const AdminDashboard: React.FC = () => {
     });
   };
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
-    try {
-      const axiosInstance = getAxiosInstance();
-      
-      const [statsRes, chartRes, compositionRes, activitiesRes, linksRes] = await Promise.all([
-        axiosInstance.get('/dashboard/stats', { params: { view_type: viewType } }),
-        axiosInstance.get('/dashboard/chart', { params: { view_type: viewType } }),
-        axiosInstance.get('/dashboard/saving-composition'),
-        axiosInstance.get('/dashboard/recent-activities'),
-        axiosInstance.get('/dashboard/quick-links')
-      ]);
-
-      if (statsRes.data.success) setStats(statsRes.data.data);
-      if (chartRes.data.success) setChartData(chartRes.data.data);
-      if (compositionRes.data.success) setPieData(compositionRes.data.data);
-      if (activitiesRes.data.success) setRecentActivities(activitiesRes.data.data);
-      if (linksRes.data.success) setQuickLinks(linksRes.data.data);
-      
-    } catch (error: any) {
-      console.error('Error fetching dashboard data:', error);
-      
-      // Fallback ke data dummy jika API gagal
-      setStats(viewType === 'monthly' ? [
-        { label: 'Total Anggota', value: '245', color: 'bg-blue-500', trend: '+12' },
-        { label: 'Total Simpanan', value: 'Rp 1.25M', color: 'bg-emerald-500', trend: '+5.2%' },
-        { label: 'Total Pinjaman', value: 'Rp 450jt', color: 'bg-amber-500', trend: '-2.1%' },
-        { label: 'Total SHU 2025', value: 'Rp 250jt', color: 'bg-purple-500', trend: '+15%' },
-      ] : [
-        { label: 'Total Anggota (YTD)', value: '245', color: 'bg-blue-500', trend: '+45' },
-        { label: 'Total Simpanan (YTD)', value: 'Rp 15.2M', color: 'bg-emerald-500', trend: '+12.5%' },
-        { label: 'Total Pinjaman (YTD)', value: 'Rp 5.4M', color: 'bg-amber-500', trend: '+8.1%' },
-        { label: 'Total SHU (YTD)', value: 'Rp 2.1M', color: 'bg-purple-500', trend: '+22%' },
-      ]);
-      
-      setChartData(viewType === 'monthly' ? [
-        { name: 'Jan', simpanan: 4000, pinjaman: 2400 },
-        { name: 'Feb', simpanan: 3000, pinjaman: 1398 },
-        { name: 'Mar', simpanan: 2000, pinjaman: 9800 },
-        { name: 'Apr', simpanan: 2780, pinjaman: 3908 },
-        { name: 'May', simpanan: 1890, pinjaman: 4800 },
-        { name: 'Jun', simpanan: 2390, pinjaman: 3800 },
-      ] : [
-        { name: '2020', simpanan: 40000, pinjaman: 24000 },
-        { name: '2021', simpanan: 30000, pinjaman: 13980 },
-        { name: '2022', simpanan: 20000, pinjaman: 98000 },
-        { name: '2023', simpanan: 27800, pinjaman: 39080 },
-        { name: '2024', simpanan: 18900, pinjaman: 48000 },
-        { name: '2025', simpanan: 23900, pinjaman: 38000 },
-      ]);
-      
-      setPieData([
-        { name: 'Pokok', value: 40, percentage: 40 },
-        { name: 'Wajib', value: 35, percentage: 35 },
-        { name: 'Sukarela', value: 25, percentage: 25 },
-      ]);
-      
-      setQuickLinks([
-        { title: 'Verifikasi & Persetujuan', description: '12 antrean menunggu', icon: 'ShieldCheck', icon_color: 'bg-blue-100 text-blue-600', route: '/admin/approvals', badge: 12 },
-        { title: 'Manajemen Keuangan', description: 'Update kas & simpanan', icon: 'Wallet', icon_color: 'bg-emerald-100 text-emerald-600', route: '/admin/finance', badge: null },
-        { title: 'Data Anggota', description: 'Kelola database anggota', icon: 'Users', icon_color: 'bg-purple-100 text-purple-600', route: '/admin/members', badge: null },
-        { title: 'Laporan Keuangan', description: 'Generate laporan berkala', icon: 'FileText', icon_color: 'bg-amber-100 text-amber-600', route: '/admin/reports', badge: null },
-      ]);
-      
-      if (addNotification) {
-        addNotification({
-          title: 'Gagal Memuat Data',
-          message: error.response?.data?.message || 'Terjadi kesalahan, menampilkan data demo.',
-          type: 'error'
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+// AdminDashboard.tsx - Progressive loading
+const fetchDashboardData = async () => {
+  setLoading(true);
+  try {
+    const axiosInstance = getAxiosInstance();
+    
+    // Load stats dulu (paling penting)
+    const statsRes = await axiosInstance.get('/dashboard/stats', { params: { view_type: viewType } });
+    if (statsRes.data.success) setStats(statsRes.data.data);
+    
+    // Load chart dan composition (loading state tetap true sampai semua selesai)
+    const [chartRes, compositionRes, activitiesRes, linksRes] = await Promise.all([
+      axiosInstance.get('/dashboard/chart', { params: { view_type: viewType } }),
+      axiosInstance.get('/dashboard/saving-composition'),
+      axiosInstance.get('/dashboard/recent-activities'),
+      axiosInstance.get('/dashboard/quick-links')
+    ]);
+    
+    if (chartRes.data.success) setChartData(chartRes.data.data);
+    if (compositionRes.data.success) setPieData(compositionRes.data.data);
+    if (activitiesRes.data.success) setRecentActivities(activitiesRes.data.data);
+    if (linksRes.data.success) setQuickLinks(linksRes.data.data);
+    
+  } catch (error: any) {
+    console.error('Error fetching dashboard data:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -194,18 +148,37 @@ const AdminDashboard: React.FC = () => {
     }).format(amount);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <RefreshCw size={40} className="animate-spin text-imigrasi-primary mx-auto mb-4" />
-          <p className="text-gray-500">Memuat data dashboard...</p>
+// AdminDashboard.tsx - Ganti loading spinner dengan skeleton
+if (loading) {
+  return (
+    <div className="space-y-8">
+      {/* Skeleton untuk header */}
+      <div className="flex justify-between">
+        <div className="space-y-2">
+          <div className="h-8 w-48 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
+          <div className="h-4 w-96 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
         </div>
+        <div className="h-10 w-32 bg-gray-200 dark:bg-neutral-700 rounded-xl animate-pulse" />
       </div>
-    );
-  }
+      
+      {/* Skeleton untuk 4 cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[1,2,3,4].map(i => (
+          <div key={i} className="glass-card p-6 rounded-3xl">
+            <div className="h-4 w-24 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse mb-4" />
+            <div className="h-8 w-32 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
+          </div>
+        ))}
+      </div>
+      
+      {/* Skeleton untuk chart */}
+      <div className="glass-card p-8 rounded-[2.5rem]">
+        <div className="h-[300px] bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
+      </div>
+    </div>
+  );
+}
 
-  // Gunakan data dari state jika ada,否则 fallback ke data dummy
   const displayStats = stats.length > 0 ? stats : (viewType === 'monthly' ? [
     { label: 'Total Anggota', value: '245', color: 'bg-blue-500', trend: '+12' },
     { label: 'Total Simpanan', value: 'Rp 1.25M', color: 'bg-emerald-500', trend: '+5.2%' },

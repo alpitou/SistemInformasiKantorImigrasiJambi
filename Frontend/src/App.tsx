@@ -84,7 +84,7 @@ const AppContent: React.FC = () => {
           
           <Route path="/admin" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/members" element={<ProtectedRoute allowedRoles={['admin', 'ketua', 'sekretaris']}><MemberManagement /></ProtectedRoute>} />
-          <Route path="/admin/financial" element={<ProtectedRoute allowedRoles={['admin', 'ketua', 'bendahara']}><FinancialManagement /></ProtectedRoute>} />
+          <Route path="/admin/finance" element={<ProtectedRoute allowedRoles={['admin', 'ketua', 'bendahara']}><FinancialManagement /></ProtectedRoute>} />
           <Route path="/admin/approvals" element={<ProtectedRoute allowedRoles={['admin', 'ketua', 'bendahara']}><Approvals /></ProtectedRoute>} />
           <Route path="/admin/savings-verification" element={<ProtectedRoute allowedRoles={VERIFIER_ROLES}><SavingsVerification /></ProtectedRoute>} />
           <Route path="/admin/payroll" element={<ProtectedRoute allowedRoles={PAYROLL_ROLES}><PayrollDeduction /></ProtectedRoute>} />

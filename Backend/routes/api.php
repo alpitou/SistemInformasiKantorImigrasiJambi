@@ -126,6 +126,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/savings/financial/summary', [SavingController::class, 'getFinancialSummary']);
         Route::get('/savings/financial/transactions', [SavingController::class, 'getTransactionHistory']);
+        Route::get('/savings/financial', [SavingController::class, 'getFinancialSummary']);
     });
     
     // ==============================================

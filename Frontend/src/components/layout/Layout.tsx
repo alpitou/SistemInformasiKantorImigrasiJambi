@@ -30,7 +30,7 @@ const Layout: React.FC = () => {
     const menus = [
       { icon: LayoutDashboard, label: 'Dashboard Admin', path: '/admin', end: true, roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
       { icon: Users, label: 'Manajemen Anggota', path: '/admin/members', roles: ['admin', 'ketua', 'sekretaris'] },
-      { icon: Wallet, label: 'Manajemen Keuangan', path: '/admin/financial', roles: ['admin', 'ketua', 'bendahara'] },
+      { icon: Wallet, label: 'Manajemen Keuangan', path: '/admin/finance', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: ShieldCheck, label: 'Persetujuan Pinjaman', path: '/admin/approvals', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: CheckCircle, label: 'Verifikasi Setoran', path: '/admin/savings-verification', roles: ['admin', 'bendahara'] },
       { icon: FileSpreadsheet, label: 'Ekspor Potongan', path: '/admin/deductions', roles: ['admin', 'bendahara'] }, // DIPINDAHKAN KE ATAS
