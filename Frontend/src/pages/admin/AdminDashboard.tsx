@@ -118,13 +118,6 @@ const AdminDashboard: React.FC = () => {
         { name: 'Sukarela', value: 25, percentage: 25 },
       ]);
       
-      setRecentActivities([
-        { id: '1', title: 'Simpanan Wajib Masuk', description: 'Oleh: Anggota Ke-1 • 2 jam yang lalu', amount: 1000000, status: 'Berhasil', status_color: 'text-emerald-500', icon: 'Wallet' },
-        { id: '2', title: 'Pengajuan Pinjaman Baru', description: 'Oleh: Anggota Ke-2 • 2 jam yang lalu', amount: 2000000, status: 'Berhasil', status_color: 'text-emerald-500', icon: 'HandCoins' },
-        { id: '3', title: 'Simpanan Wajib Masuk', description: 'Oleh: Anggota Ke-3 • 2 jam yang lalu', amount: 3000000, status: 'Berhasil', status_color: 'text-emerald-500', icon: 'Wallet' },
-        { id: '4', title: 'Pengajuan Pinjaman Baru', description: 'Oleh: Anggota Ke-4 • 2 jam yang lalu', amount: 4000000, status: 'Berhasil', status_color: 'text-emerald-500', icon: 'HandCoins' },
-      ]);
-      
       setQuickLinks([
         { title: 'Verifikasi & Persetujuan', description: '12 antrean menunggu', icon: 'ShieldCheck', icon_color: 'bg-blue-100 text-blue-600', route: '/admin/approvals', badge: 12 },
         { title: 'Manajemen Keuangan', description: 'Update kas & simpanan', icon: 'Wallet', icon_color: 'bg-emerald-100 text-emerald-600', route: '/admin/finance', badge: null },
@@ -248,10 +241,6 @@ const AdminDashboard: React.FC = () => {
   ];
 
   const displayActivities = recentActivities.length > 0 ? recentActivities : [
-    { id: '1', title: 'Simpanan Wajib Masuk', description: 'Oleh: Anggota Ke-1 • 2 jam yang lalu', amount: 1000000, status: 'Berhasil', status_color: 'text-emerald-500', icon: 'Wallet' },
-    { id: '2', title: 'Pengajuan Pinjaman Baru', description: 'Oleh: Anggota Ke-2 • 2 jam yang lalu', amount: 2000000, status: 'Berhasil', status_color: 'text-emerald-500', icon: 'HandCoins' },
-    { id: '3', title: 'Simpanan Wajib Masuk', description: 'Oleh: Anggota Ke-3 • 2 jam yang lalu', amount: 3000000, status: 'Berhasil', status_color: 'text-emerald-500', icon: 'Wallet' },
-    { id: '4', title: 'Pengajuan Pinjaman Baru', description: 'Oleh: Anggota Ke-4 • 2 jam yang lalu', amount: 4000000, status: 'Berhasil', status_color: 'text-emerald-500', icon: 'HandCoins' },
   ];
 
   const displayQuickLinks = quickLinks.length > 0 ? quickLinks : [
