@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\SavingTypeController;
 use App\Http\Controllers\Api\FileController;
 use App\Http\Controllers\API\ActivityLogController;
 use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\MemberDashboardController;
 use App\Http\Controllers\Api\DashboardController;
 
 Route::get('/test', function() {
@@ -153,4 +154,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/dashboard/clear-cache', [DashboardController::class, 'clearCache']);
         Route::get('/dashboard', [DashboardController::class, 'index']);
     });        
+
+    Route::get('/member/dashboard/stats', [MemberDashboardController::class, 'getStats']);
+    Route::get('/member/dashboard/transactions', [MemberDashboardController::class, 'getRecentTransactions']);
+    Route::get('/member/profile', [MemberDashboardController::class, 'getProfile']);
 });
