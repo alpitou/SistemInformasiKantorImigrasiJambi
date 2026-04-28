@@ -26,6 +26,7 @@ const AdminDocuments = lazy(() => import('./pages/admin/Documents'));
 const Reports = lazy(() => import('./pages/admin/Reports'));
 const AuditLog = lazy(() => import('./pages/admin/AuditLog'));
 const AdminSettings = lazy(() => import('./pages/admin/Settings'));
+const DatabaseBackup = lazy(() => import('./pages/admin/DatabaseBackup'));
 
 const MEMBER_ROLES = ['anggota'];
 const ADMIN_ROLES = ['admin', 'ketua', 'bendahara', 'sekretaris', 'pengawas'];
@@ -94,6 +95,7 @@ const AppContent: React.FC = () => {
           <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><Reports /></ProtectedRoute>} />
           <Route path="/admin/audit" element={<ProtectedRoute allowedRoles={['admin', 'pengawas']}><AuditLog /></ProtectedRoute>} />
           <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminSettings /></ProtectedRoute>} />
+          <Route path="/admin/backup" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><DatabaseBackup /></ProtectedRoute>} />
         </Route>
         
         <Route path="/" element={<Navigate to={getDefaultRoute()} replace />} />

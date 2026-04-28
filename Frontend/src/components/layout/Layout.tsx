@@ -3,7 +3,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
 import { 
   LayoutDashboard, User as UserIcon, Wallet, HandCoins, History, FileText, LogOut, Menu, X, Bell, Moon, Sun,
-  ShieldCheck, Users, PieChart, Settings, Archive, FileSpreadsheet, CheckCircle, TrendingUp
+  ShieldCheck, Users, PieChart, Settings, Archive, FileSpreadsheet, CheckCircle, TrendingUp,
+  Database, HardDrive
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -26,6 +27,7 @@ const Layout: React.FC = () => {
     return adminRoles.includes(userRole);
   };
 
+  // Admin menus yang sudah diperbaiki - menambahkan Backup Database
   const getAllAdminMenus = () => {
     const menus = [
       { icon: LayoutDashboard, label: 'Dashboard Admin', path: '/admin', end: true, roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
@@ -33,11 +35,13 @@ const Layout: React.FC = () => {
       { icon: Wallet, label: 'Manajemen Keuangan', path: '/admin/finance', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: ShieldCheck, label: 'Persetujuan Pinjaman', path: '/admin/approvals', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: CheckCircle, label: 'Verifikasi Setoran', path: '/admin/savings-verification', roles: ['admin', 'bendahara'] },
-      { icon: FileSpreadsheet, label: 'Ekspor Potongan', path: '/admin/deductions', roles: ['admin', 'bendahara'] }, // DIPINDAHKAN KE ATAS
+      { icon: FileSpreadsheet, label: 'Ekspor Potongan', path: '/admin/deductions', roles: ['admin', 'bendahara'] },
       { icon: TrendingUp, label: 'Potongan Payroll', path: '/admin/payroll', roles: ['admin', 'bendahara'] },
       { icon: Archive, label: 'Arsip Perjanjian', path: '/admin/loan-archives', roles: ['admin', 'ketua', 'sekretaris'] },
       { icon: FileText, label: 'Upload Dokumen', path: '/admin/documents', roles: ['admin', 'ketua', 'sekretaris'] },
       { icon: FileText, label: 'Laporan', path: '/admin/reports', roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
+      // MENU BACKUP DATABASE - DITAMBAHKAN DISINI
+      { icon: Database, label: 'Backup Database', path: '/admin/backup', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: Settings, label: 'Pengaturan', path: '/admin/settings', roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
     ];
     return menus.filter(menu => menu.roles.includes(userRole));
@@ -131,6 +135,29 @@ const Layout: React.FC = () => {
     }
   }, [userRole, addNotification]);
 
+  // Cek apakah ada backup yang perlu diingatkan
+  useEffect(() => {
+    if (isAdminRole() && (userRole === 'admin' || userRole === 'ketua' || userRole === 'bendahara')) {
+      const lastBackupKey = 'last_backup_reminder';
+      const lastBackupDate = localStorage.getItem(lastBackupKey);
+      const now = new Date();
+      
+      // Reminder backup setiap 7 hari sekali
+      if (!lastBackupDate || (now.getTime() - new Date(lastBackupDate).getTime()) > 7 * 24 * 60 * 60 * 1000) {
+        const timer = setTimeout(() => {
+          addNotification({
+            title: '💾 Backup Database',
+            message: 'Sudah saatnya melakukan backup database untuk keamanan data koperasi.',
+            type: 'info',
+            link: '/admin/backup'
+          });
+          localStorage.setItem(lastBackupKey, now.toISOString());
+        }, 5000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [userRole, addNotification]);
+
   return (
     <div className="min-h-screen flex bg-imigrasi-neutral-light dark:bg-neutral-900">
       <motion.aside 
@@ -191,6 +218,16 @@ const Layout: React.FC = () => {
               </NavLink>
             ))}
           </div>
+          
+          {/* Footer credits di sidebar - hanya muncul saat sidebar terbuka */}
+          {isSidebarOpen && (
+            <div className="mt-8 pt-4 border-t border-white/10">
+              <div className="text-[10px] text-white/40 text-center">
+                <p>© {new Date().getFullYear()} SIMKOP-IM</p>
+                <p className="mt-1">Koperasi Kanim Jambi</p>
+              </div>
+            </div>
+          )}
         </nav>
       </motion.aside>
 

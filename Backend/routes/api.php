@@ -13,6 +13,7 @@ use App\Http\Controllers\API\ActivityLogController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\MemberDashboardController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DatabaseBackupController;
 
 Route::get('/test', function() {
     return response()->json([
@@ -153,7 +154,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/dashboard/quick-links', [DashboardController::class, 'getQuickLinks']);
         Route::post('/dashboard/clear-cache', [DashboardController::class, 'clearCache']);
         Route::get('/dashboard', [DashboardController::class, 'index']);
-    });        
+    });
+    
+    // Database Backup Routes
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::prefix('database')->group(function () {
+            Route::get('/backup', [DatabaseBackupController::class, 'backup']);
+            Route::get('/backups/list', [DatabaseBackupController::class, 'listBackups']);
+            Route::get('/backup/download/{filename}', [DatabaseBackupController::class, 'downloadBackup']);
+            Route::delete('/backup/delete/{filename}', [DatabaseBackupController::class, 'deleteBackup']);
+            Route::delete('/backup/clean', [DatabaseBackupController::class, 'cleanBackups']);
+        });
+    });
 
     Route::get('/member/dashboard/stats', [MemberDashboardController::class, 'getStats']);
     Route::get('/member/dashboard/transactions', [MemberDashboardController::class, 'getRecentTransactions']);

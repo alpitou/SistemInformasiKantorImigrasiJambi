@@ -1583,4 +1583,399 @@ class SavingController extends Controller
 
         return $transactions;
     }
+
+    // ==================== PAYROLL DEDUCTION METHODS ====================
+
+    /**
+     * Get members with their savings and loan data for payroll deduction
+     */
+    public function getPayrollMembers(Request $request)
+    {
+        try {
+            $month = $request->query('month', now()->format('Y-m'));
+            [$year, $monthNum] = explode('-', $month);
+                        
+            // Get all active members (role_id = 5 = Anggota)
+            $members = User::where('role_id', 5)
+                ->where('status', 'active')
+                ->get();
+                        
+            // Get saving types
+            $savingTypes = SavingType::all();
+                        
+            // Get existing deductions for this month
+            $existingDeductions = Saving::where('transaction_type', 'deposit')
+                ->whereYear('transaction_date', $year)
+                ->whereMonth('transaction_date', $monthNum)
+                ->whereNotNull('created_by')
+                ->where('description', 'like', '%gaji%')
+                ->get()
+                ->groupBy('user_id');
+                        
+            // Get existing loan installments for this month
+            $existingLoanDeductions = LoanInstallment::where('payment_method', 'potong_gaji')
+                ->whereYear('payment_date', $year)
+                ->whereMonth('payment_date', $monthNum)
+                ->get()
+                ->groupBy('loan.user_id');
+                        
+            $result = [];
+                        
+            foreach ($members as $member) {
+                // Check if member already processed this month
+                $alreadyProcessed = $existingDeductions->has($member->id);
+                        
+                // Get member's savings data
+                $memberSavings = [];
+                foreach ($savingTypes as $type) {
+                    $balance = $this->getBalance($member->id, $type->id);
+                    $defaultAmount = $this->getDefaultSavingsAmount($member, $type);
+                    $isProcessed = false;
+                        
+                    if ($alreadyProcessed && $existingDeductions->has($member->id)) {
+                        $isProcessed = $existingDeductions[$member->id]->contains(function($s) use ($type) {
+                            return $s->saving_type_id == $type->id;
+                        });
+                    }
+                        
+                    $memberSavings[] = [
+                        'type_id' => $type->id,
+                        'type_name' => $type->name,
+                        'default_amount' => $defaultAmount,
+                        'current_balance' => $balance,
+                        'is_processed' => $isProcessed
+                    ];
+                }
+                        
+                // Check for active loan
+                $activeLoan = Loan::where('user_id', $member->id)
+                    ->where('status', 'active')
+                    ->first();
+                        
+                $hasActiveLoan = !is_null($activeLoan);
+                $loanInstallment = 0;
+                $loanRemaining = 0;
+                $loanAlreadyProcessed = false;
+                        
+                if ($hasActiveLoan) {
+                    $loanInstallment = $activeLoan->installment_amount;
+                    $loanRemaining = $activeLoan->remaining_balance;
+                    $loanAlreadyProcessed = $existingLoanDeductions->has($member->id);
+                }
+                        
+                // Check if member is old member (Pokok saving is considered "paid" if balance >= 100000)
+                $pokokSaving = SavingType::where('name', 'Pokok')->first();
+                $pokokBalance = $pokokSaving ? $this->getBalance($member->id, $pokokSaving->id) : 0;
+                $isOldMember = $pokokBalance >= 100000;
+                        
+                $result[] = [
+                    'id' => $member->id,
+                    'name' => $member->name,
+                    'nip' => $member->nip ?? '-',
+                    'unit' => $member->unit ?? '-',
+                    'is_old_member' => $isOldMember,
+                    'already_processed' => $alreadyProcessed,
+                    'has_active_loan' => $hasActiveLoan,
+                    'loan_installment' => $loanInstallment,
+                    'loan_remaining' => $loanRemaining,
+                    'loan_already_processed' => $loanAlreadyProcessed,
+                    'savings' => $memberSavings
+                ];
+            }
+                        
+            return response()->json([
+                'success' => true,
+                'message' => 'Data anggota berhasil diambil',
+                'data' => $result
+            ]);
+                        
+        } catch (\Exception $e) {
+            \Log::error('Get payroll members error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data anggota: ' . $e->getMessage(),
+                'data' => []
+            ], 500);
+        }
+    }
+
+    /**
+     * Get default saving amount based on member type and saving type
+     */
+    private function getDefaultSavingsAmount($member, $savingType)
+    {
+        // Default amounts configuration
+        $defaults = [
+            'Pokok' => 100000,
+            'Wajib' => 50000,
+            'Sukarela' => 0
+        ];
+                        
+        $amount = $defaults[$savingType->name] ?? 0;
+                        
+        // Old members (pokok sudah lunas) don't need to pay Pokok
+        if ($savingType->name === 'Pokok') {
+            $pokokBalance = $this->getBalance($member->id, $savingType->id);
+            if ($pokokBalance >= 100000) {
+                return 0; // Already paid
+            }
+        }
+                        
+        return $amount;
+    }
+
+    /**
+     * Process payroll deductions
+     */
+    public function processPayroll(Request $request)
+    {
+        try {
+            $request->validate([
+                'month' => 'required|date_format:Y-m',
+                'deductions' => 'required|array',
+                'deductions.*.user_id' => 'required|exists:users,id',
+                'deductions.*.saving_type_id' => 'required|exists:saving_types,id',
+                'deductions.*.amount' => 'required|numeric|min:0',
+                'process_loan_installments' => 'boolean'
+            ]);
+                        
+            $user = $request->user();
+                        
+            // Check permission - hanya bendahara atau admin
+            if (!in_array($user->role_id, [1, 3])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses ditolak. Hanya bendahara atau admin yang dapat memproses payroll.',
+                    'data' => null
+                ], 403);
+            }
+                        
+            DB::beginTransaction();
+                        
+            $month = $request->month;
+            $transactionDate = $month . '-25'; // Use 25th of the month
+            $processLoan = $request->process_loan_installments ?? true;
+                        
+            $processedSavings = 0;
+            $processedLoans = 0;
+            $totalAmount = 0;
+                        
+            // Process savings deductions
+            foreach ($request->deductions as $deduction) {
+                // Check if already processed for this month
+                $exists = Saving::where('user_id', $deduction['user_id'])
+                    ->where('saving_type_id', $deduction['saving_type_id'])
+                    ->whereYear('transaction_date', substr($month, 0, 4))
+                    ->whereMonth('transaction_date', substr($month, 5, 2))
+                    ->where('description', 'like', '%Potongan Gaji%')
+                    ->exists();
+                        
+                if (!$exists && $deduction['amount'] > 0) {
+                    Saving::create([
+                        'user_id' => $deduction['user_id'],
+                        'saving_type_id' => $deduction['saving_type_id'],
+                        'amount' => $deduction['amount'],
+                        'transaction_type' => 'deposit',
+                        'description' => "Potongan Gaji Bulan " . date('F Y', strtotime($month . '-01')),
+                        'transaction_date' => $transactionDate,
+                        'created_by' => $user->id,
+                        'verification_status' => 'verified',
+                        'verified_at' => now(),
+                        'verified_by' => $user->id
+                    ]);
+                    $processedSavings++;
+                    $totalAmount += $deduction['amount'];
+                }
+            }
+                        
+            // Process loan installments if enabled
+            if ($processLoan) {
+                $membersWithLoan = User::where('role_id', 5)
+                    ->whereHas('loans', function($q) {
+                        $q->where('status', 'active');
+                    })
+                    ->get();
+                        
+                foreach ($membersWithLoan as $member) {
+                    $activeLoan = Loan::where('user_id', $member->id)
+                        ->where('status', 'active')
+                        ->first();
+                        
+                    if ($activeLoan) {
+                        // Check if already processed this month
+                        $exists = LoanInstallment::where('loan_id', $activeLoan->id)
+                            ->whereYear('payment_date', substr($month, 0, 4))
+                            ->whereMonth('payment_date', substr($month, 5, 2))
+                            ->exists();
+                        
+                        if (!$exists) {
+                            $installmentNumber = $this->getNextInstallmentNumber($activeLoan->id);
+                            $newRemainingBalance = $activeLoan->remaining_balance - $activeLoan->installment_amount;
+
+                            LoanInstallment::create([
+                                'loan_id' => $activeLoan->id,
+                                'installment_number' => $installmentNumber,
+                                'amount_paid' => $activeLoan->installment_amount,
+                                'payment_method' => 'potong_gaji',
+                                'payment_date' => $transactionDate,
+                                'notes' => "Potongan Gaji Bulan " . date('F Y', strtotime($month . '-01')),
+                                'verified_by' => $user->id
+                            ]);
+
+                            $activeLoan->update([
+                                'remaining_balance' => max(0, $newRemainingBalance),
+                                'status' => $newRemainingBalance <= 0 ? 'completed' : 'active'
+                            ]);
+
+                            $processedLoans++;
+                        }
+                    }
+                }
+            }
+                        
+            DB::commit();
+                        
+            return response()->json([
+                'success' => true,
+                'message' => "Berhasil memproses {$processedSavings} potongan simpanan dan {$processedLoans} angsuran pinjaman. Total: Rp " . number_format($totalAmount, 0, ',', '.'),
+                'data' => [
+                    'processed_savings' => $processedSavings,
+                    'processed_loans' => $processedLoans,
+                    'total_amount' => $totalAmount
+                ]
+            ]);
+                        
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Process payroll error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memproses payroll: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get payroll history
+     */
+
+    /**
+     * Export payroll data for bank format
+     */
+    public function exportPayroll(Request $request)
+    {
+        try {
+            $month = $request->query('month', date('Y-m'));
+            [$year, $monthNum] = explode('-', $month);
+                        
+            // Get members with their deduction amounts
+            $members = User::where('role_id', 5)
+                ->where('status', 'active')
+                ->get();
+                        
+            $pokokType = SavingType::where('name', 'Pokok')->first();
+            $wajibType = SavingType::where('name', 'Wajib')->first();
+                        
+            $deductions = [];
+            $totalAll = 0;
+                        
+            foreach ($members as $member) {
+                $pokokAmount = 0;
+                $wajibAmount = 0;
+                        
+                if ($pokokType) {
+                    $pokokBalance = $this->getBalance($member->id, $pokokType->id);
+                    if ($pokokBalance < 100000) {
+                        $pokokAmount = 100000;
+                    }
+                }
+                        
+                if ($wajibType) {
+                    $wajibAmount = 50000;
+                }
+                        
+                // Check for active loan
+                $activeLoan = Loan::where('user_id', $member->id)
+                    ->where('status', 'active')
+                    ->first();
+                        
+                $loanAmount = $activeLoan ? $activeLoan->installment_amount : 0;
+                        
+                $total = $pokokAmount + $wajibAmount + $loanAmount;
+                        
+                if ($total > 0) {
+                    $deductions[] = [
+                        'name' => $member->name,
+                        'nip' => $member->nip ?? '-',
+                        'unit' => $member->unit ?? '-',
+                        'pokok' => $pokokAmount,
+                        'wajib' => $wajibAmount,
+                        'loan' => $loanAmount,
+                        'total' => $total
+                    ];
+                    $totalAll += $total;
+                }
+            }
+                        
+            // Generate CSV for bank format
+            $csvRows = [];
+            $csvRows[] = ['REKENINGKREDIT', 'NAMA REKENING', 'REMARKS', 'JUMLAH AMOUNT', 'JUMLAH CHARGE', 'JUMLAH RECORD', 'TANGGAL', 'CABANG', 'CORPORATE/CUSTOMER', 'CORPORATE CHARGE'];
+            $csvRows[] = [
+                '9203902930293',
+                'REKENING PENAMPUNGAN',
+                'POT INSTANSI',
+                $totalAll,
+                '0',
+                count($deductions),
+                '',
+                '0020',
+                '',
+                ''
+            ];
+            $csvRows[] = [];
+            $csvRows[] = ['REKENINGDEBET', 'NAMA REKENING', 'REMARKS', 'AMOUNT', 'CHARGE', '', '', '', '', ''];
+                        
+            $transactionDate = str_replace('-', '', $month) . '25';
+                        
+            foreach ($deductions as $item) {
+                $csvRows[] = [
+                    '182032093029',
+                    $item['name'],
+                    'POTONGAN BULANAN',
+                    $item['total'],
+                    '1000',
+                    '1',
+                    $transactionDate,
+                    '0020',
+                    '',
+                    ''
+                ];
+            }
+                        
+            $filename = "payroll_{$month}.csv";
+                        
+            $handle = fopen('php://temp', 'w+');
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+                        
+            foreach ($csvRows as $row) {
+                fputcsv($handle, $row);
+            }
+                        
+            rewind($handle);
+            $csvContent = stream_get_contents($handle);
+            fclose($handle);
+                        
+            return response($csvContent, 200)
+                ->header('Content-Type', 'text/csv; charset=UTF-8')
+                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+                        
+        } catch (\Exception $e) {
+            \Log::error('Export payroll error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengekspor data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

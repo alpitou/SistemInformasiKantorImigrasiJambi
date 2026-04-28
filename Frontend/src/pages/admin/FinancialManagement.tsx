@@ -417,18 +417,6 @@ const FinancialManagement: React.FC = () => {
     }
   };
 
-  const handleBackup = async () => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsLoading(false);
-    setShowBackupModal(false);
-    addNotification({
-      title: 'Backup Berhasil',
-      message: 'Database berhasil di-backup dan diunduh.',
-      type: 'success'
-    });
-  };
-
   const getTransactionIcon = (type: string) => {
     switch(type) {
       case 'saving':
@@ -738,34 +726,6 @@ const FinancialManagement: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Backup Modal */}
-      <AnimatePresence>
-        {showBackupModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowBackupModal(false)} />
-            <div className="relative w-full max-w-sm bg-white dark:bg-neutral-800 rounded-xl shadow-2xl overflow-hidden">
-              <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-neutral-700 bg-purple-600 text-white">
-                <h3 className="font-bold">Backup Database</h3>
-                <button onClick={() => setShowBackupModal(false)} className="p-1 hover:bg-white/10 rounded-full"><X size={18} /></button>
-              </div>
-              <div className="p-6 text-center space-y-4">
-                <div className="w-16 h-16 bg-purple-50 dark:bg-purple-900/20 rounded-2xl flex items-center justify-center mx-auto">
-                  <Save size={32} className="text-purple-600" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 dark:text-white">Amankan Data Anda</h4>
-                  <p className="text-xs text-gray-500 mt-1">Sistem akan membuat salinan lengkap database</p>
-                </div>
-                <button onClick={handleBackup} disabled={isLoading} className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2">
-                  {isLoading ? <RefreshCw className="animate-spin" size={16} /> : <Download size={16} />}
-                  {isLoading ? 'Memproses...' : 'Mulai Backup'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </AnimatePresence>
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -774,13 +734,10 @@ const FinancialManagement: React.FC = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => setShowKantinModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">
-            <ShoppingBag size={14} /> Tambah Kantin
+            <ShoppingBag size={14} /> Tambah Pemasukan
           </button>
           <button onClick={() => setShowSHUModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-imigrasi-accent text-imigrasi-primary rounded-lg text-sm font-medium hover:bg-white">
             <PieChart size={14} /> Proses SHU
-          </button>
-          <button onClick={() => setShowBackupModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">
-            <Save size={14} /> Backup
           </button>
           <button onClick={() => { fetchFinancialData(); fetchTransactions(); fetchKantinIncomes(); }} className="p-2 bg-white dark:bg-neutral-800 border rounded-lg">
             <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
