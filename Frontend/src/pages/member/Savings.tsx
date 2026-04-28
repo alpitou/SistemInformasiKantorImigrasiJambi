@@ -684,7 +684,7 @@ const Savings: React.FC = () => {
                   <X size={20} />
                 </button>
               </div>
-              <div className="p-6 space-y-6">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
                 {/* Informasi Saldo */}
                 <div className="space-y-3 p-4 bg-gray-50 dark:bg-neutral-700/30 rounded-2xl">
                   <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">Informasi Saldo</h4>

@@ -33,10 +33,13 @@ class MemberDashboardController extends Controller
             foreach ($savingTypes as $type) {
                 $balance = $this->getSavingsBalance($userId, $type->id);
                 $totalSavings += $balance;
-                
-                if ($type->name === 'Pokok') $pokokBalance = $balance;
-                if ($type->name === 'Wajib') $wajibBalance = $balance;
-                if ($type->name === 'Sukarela') $sukarelaBalance = $balance;
+
+                if ($type->name === 'Pokok')
+                    $pokokBalance = $balance;
+                if ($type->name === 'Wajib')
+                    $wajibBalance = $balance;
+                if ($type->name === 'Sukarela')
+                    $sukarelaBalance = $balance;
             }
 
             // Get active loan
@@ -52,7 +55,8 @@ class MemberDashboardController extends Controller
             if ($activeLoan) {
                 $paidInstallments = LoanInstallment::where('loan_id', $activeLoan->id)->count();
                 $remainingTenor = $activeLoan->tenor_months - $paidInstallments;
-                if ($remainingTenor < 0) $remainingTenor = 0;
+                if ($remainingTenor < 0)
+                    $remainingTenor = 0;
             }
 
             // Calculate estimated SHU (15% of Sukarela savings)
@@ -120,19 +124,19 @@ class MemberDashboardController extends Controller
             // Get savings transactions
             $savings = Saving::with(['type'])
                 ->where('user_id', $userId)
-                ->where(function($q) {
+                ->where(function ($q) {
                     $q->where('verification_status', 'verified')
-                      ->orWhere('transaction_type', 'withdrawal');
+                        ->orWhere('transaction_type', 'withdrawal');
                 })
                 ->orderBy('transaction_date', 'desc')
                 ->limit($limit)
                 ->get();
 
             foreach ($savings as $saving) {
-                $isPayroll = ($saving->type && $saving->type->name === 'Wajib' && 
-                             strpos($saving->description ?? '', 'gaji') !== false);
+                $isPayroll = ($saving->type && $saving->type->name === 'Wajib' &&
+                    strpos($saving->description ?? '', 'gaji') !== false);
                 $isWithdrawal = $saving->transaction_type === 'withdrawal';
-                
+
                 $transactions[] = [
                     'id' => 'saving_' . $saving->id,
                     'type' => $isWithdrawal ? 'withdrawal' : ($isPayroll ? 'payroll' : 'saving'),
@@ -148,7 +152,7 @@ class MemberDashboardController extends Controller
             }
 
             // Sort by date
-            usort($transactions, function($a, $b) {
+            usort($transactions, function ($a, $b) {
                 return strtotime($b['date']) - strtotime($a['date']);
             });
 
@@ -177,7 +181,7 @@ class MemberDashboardController extends Controller
     {
         try {
             $user = $request->user();
-            
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -210,18 +214,18 @@ class MemberDashboardController extends Controller
     private function getSavingsBalance($userId, $savingTypeId = null)
     {
         $query = Saving::where('user_id', $userId);
-        
-        $query->where(function($q) {
+
+        $query->where(function ($q) {
             $q->where('verification_status', 'verified')
-              ->orWhere('transaction_type', 'withdrawal');
+                ->orWhere('transaction_type', 'withdrawal');
         });
-        
+
         if ($savingTypeId) {
             $query->where('saving_type_id', $savingTypeId);
         }
-        
+
         $savings = $query->get();
-        
+
         $balance = 0;
         foreach ($savings as $saving) {
             if ($saving->transaction_type === 'deposit') {
@@ -230,7 +234,7 @@ class MemberDashboardController extends Controller
                 $balance -= $saving->amount;
             }
         }
-        
+
         return $balance;
     }
 

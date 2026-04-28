@@ -645,10 +645,6 @@ const MemberManagement: React.FC = () => {
             className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
           />
         </div>
-        <button className="flex items-center gap-2 px-4 py-3 bg-gray-50 dark:bg-neutral-700 rounded-2xl text-sm font-bold text-gray-600 dark:text-gray-300">
-          <Download size={18} />
-          Export
-        </button>
       </div>
 
       <div className="glass-card rounded-[2.5rem] overflow-hidden">

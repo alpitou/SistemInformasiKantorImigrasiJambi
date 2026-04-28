@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Wallet, 
-  HandCoins, 
-  TrendingUp, 
-  ArrowUpRight, 
-  ArrowDownRight, 
+import {
+  Wallet,
+  HandCoins,
+  TrendingUp,
+  ArrowUpRight,
+  ArrowDownRight,
   Download,
   Calendar,
   Clock,
@@ -82,7 +82,7 @@ const MemberDashboard: React.FC = () => {
     const token = localStorage.getItem('token');
     return axios.create({
       baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
-      headers: { 
+      headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/json',
         'Content-Type': 'application/json'
@@ -94,7 +94,7 @@ const MemberDashboard: React.FC = () => {
     setLoading(true);
     try {
       const axiosInstance = getAxiosInstance();
-      
+
       const [statsRes, transactionsRes, profileRes] = await Promise.all([
         axiosInstance.get('/member/dashboard/stats'),
         axiosInstance.get('/member/dashboard/transactions'),
@@ -104,7 +104,7 @@ const MemberDashboard: React.FC = () => {
       if (statsRes.data.success) setStats(statsRes.data.data);
       if (transactionsRes.data.success) setRecentTransactions(transactionsRes.data.data);
       if (profileRes.data.success) setProfile(profileRes.data.data);
-      
+
     } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
       if (addNotification) {
@@ -123,7 +123,7 @@ const MemberDashboard: React.FC = () => {
     setRefreshing(true);
     await fetchDashboardData();
     setRefreshing(false);
-    
+
     if (addNotification) {
       addNotification({
         title: 'Data Diperbarui',
@@ -281,7 +281,7 @@ const MemberDashboard: React.FC = () => {
   }
 
   return (
-    <motion.div 
+    <motion.div
       variants={containerVariants}
       initial="hidden"
       animate="visible"
@@ -291,14 +291,14 @@ const MemberDashboard: React.FC = () => {
       <AnimatePresence>
         {showLoanModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setShowLoanModal(false)}
             />
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -313,9 +313,9 @@ const MemberDashboard: React.FC = () => {
               <div className="p-8 space-y-6">
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Jumlah Pinjaman (IDR)</label>
-                  <input 
-                    type="number" 
-                    placeholder="Contoh: 5000000" 
+                  <input
+                    type="number"
+                    placeholder="Contoh: 5000000"
                     value={loanAmount}
                     onChange={(e) => setLoanAmount(e.target.value)}
                     className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
@@ -323,7 +323,7 @@ const MemberDashboard: React.FC = () => {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Tenor (Bulan)</label>
-                  <select 
+                  <select
                     value={loanTenor}
                     onChange={(e) => setLoanTenor(e.target.value)}
                     className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
@@ -338,7 +338,7 @@ const MemberDashboard: React.FC = () => {
                     * Pengajuan akan diverifikasi oleh Bendahara dan Ketua Koperasi. Pastikan data yang Anda masukkan benar.
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={handleSubmitLoan}
                   disabled={isSubmitting || !loanAmount}
                   className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 disabled:opacity-50"
@@ -355,14 +355,14 @@ const MemberDashboard: React.FC = () => {
       <AnimatePresence>
         {showWithdrawModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setShowWithdrawModal(false)}
             />
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -385,9 +385,9 @@ const MemberDashboard: React.FC = () => {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Jumlah Penarikan (IDR)</label>
-                  <input 
-                    type="number" 
-                    placeholder="Contoh: 100000" 
+                  <input
+                    type="number"
+                    placeholder="Contoh: 100000"
                     value={withdrawAmount}
                     onChange={(e) => setWithdrawAmount(e.target.value)}
                     className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
@@ -398,7 +398,7 @@ const MemberDashboard: React.FC = () => {
                     * Penarikan simpanan sukarela akan diproses dalam 1x24 jam hari kerja. Dana akan ditransfer ke rekening gaji Anda.
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={handleWithdraw}
                   disabled={isSubmitting || !withdrawAmount || (stats && parseInt(withdrawAmount) > stats.sukarela)}
                   className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 disabled:opacity-50"
@@ -418,7 +418,7 @@ const MemberDashboard: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400">Ringkasan aktivitas keuangan Anda di Koperasi Kanim Jambi.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={handleRefresh}
             disabled={refreshing}
             className="p-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl text-gray-500 hover:text-imigrasi-primary transition-colors"
@@ -543,9 +543,8 @@ const MemberDashboard: React.FC = () => {
                       <tr key={trx.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${
-                              isIncome ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
-                            }`}>
+                            <div className={`p-2 rounded-lg ${isIncome ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
+                              }`}>
                               <IconComponent size={16} />
                             </div>
                             <div>
@@ -553,15 +552,14 @@ const MemberDashboard: React.FC = () => {
                               <p className="text-[10px] text-gray-500 dark:text-gray-400 font-mono">{trx.category}</p>
                             </div>
                           </div>
-                         </td>
+                        </td>
                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{formatDate(trx.date)}</td>
                         <td className={`px-6 py-4 text-sm font-bold ${isIncome ? 'text-green-600' : 'text-red-600'}`}>
                           {isIncome ? '+' : '-'}{formatCurrency(trx.amount)}
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            trx.status === 'Berhasil' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${trx.status === 'Berhasil' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                            }`}>
                             {trx.status}
                           </span>
                         </td>
@@ -604,7 +602,7 @@ const MemberDashboard: React.FC = () => {
           <motion.div variants={itemVariants} className="glass-card rounded-3xl p-6">
             <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-4">Layanan Online</h3>
             <div className="grid grid-cols-2 gap-4">
-              <button 
+              <button
                 onClick={() => setShowLoanModal(true)}
                 className="p-4 rounded-2xl bg-imigrasi-primary/5 dark:bg-white/5 border border-imigrasi-primary/10 dark:border-white/10 hover:border-imigrasi-accent transition-all group text-center"
               >
@@ -613,7 +611,7 @@ const MemberDashboard: React.FC = () => {
                 </div>
                 <span className="text-xs font-bold text-gray-900 dark:text-white">Ajukan Pinjaman</span>
               </button>
-              <button 
+              <button
                 onClick={() => setShowWithdrawModal(true)}
                 className="p-4 rounded-2xl bg-imigrasi-primary/5 dark:bg-white/5 border border-imigrasi-primary/10 dark:border-white/10 hover:border-imigrasi-accent transition-all group text-center"
               >

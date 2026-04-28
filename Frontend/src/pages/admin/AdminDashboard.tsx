@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { 
-  Users, 
-  Wallet, 
-  HandCoins, 
-  TrendingUp, 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  PieChart, 
-  Activity, 
-  ShieldCheck, 
-  FileText, 
-  Calendar, 
+import {
+  Users,
+  Wallet,
+  HandCoins,
+  TrendingUp,
+  ArrowUpRight,
+  ArrowDownRight,
+  PieChart,
+  Activity,
+  ShieldCheck,
+  FileText,
+  Calendar,
   RefreshCw,
   Search,
   Filter
@@ -20,15 +20,15 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  AreaChart, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
   Area,
   Cell,
   PieChart as RePieChart,
@@ -53,7 +53,7 @@ const AdminDashboard: React.FC = () => {
     const token = localStorage.getItem('token');
     return axios.create({
       baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
-      headers: { 
+      headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/json',
         'Content-Type': 'application/json'
@@ -61,41 +61,41 @@ const AdminDashboard: React.FC = () => {
     });
   };
 
-// AdminDashboard.tsx - Progressive loading
-const fetchDashboardData = async () => {
-  setLoading(true);
-  try {
-    const axiosInstance = getAxiosInstance();
-    
-    // Load stats dulu (paling penting)
-    const statsRes = await axiosInstance.get('/dashboard/stats', { params: { view_type: viewType } });
-    if (statsRes.data.success) setStats(statsRes.data.data);
-    
-    // Load chart dan composition (loading state tetap true sampai semua selesai)
-    const [chartRes, compositionRes, activitiesRes, linksRes] = await Promise.all([
-      axiosInstance.get('/dashboard/chart', { params: { view_type: viewType } }),
-      axiosInstance.get('/dashboard/saving-composition'),
-      axiosInstance.get('/dashboard/recent-activities'),
-      axiosInstance.get('/dashboard/quick-links')
-    ]);
-    
-    if (chartRes.data.success) setChartData(chartRes.data.data);
-    if (compositionRes.data.success) setPieData(compositionRes.data.data);
-    if (activitiesRes.data.success) setRecentActivities(activitiesRes.data.data);
-    if (linksRes.data.success) setQuickLinks(linksRes.data.data);
-    
-  } catch (error: any) {
-    console.error('Error fetching dashboard data:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+  // AdminDashboard.tsx - Progressive loading
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      const axiosInstance = getAxiosInstance();
+
+      // Load stats dulu (paling penting)
+      const statsRes = await axiosInstance.get('/dashboard/stats', { params: { view_type: viewType } });
+      if (statsRes.data.success) setStats(statsRes.data.data);
+
+      // Load chart dan composition (loading state tetap true sampai semua selesai)
+      const [chartRes, compositionRes, activitiesRes, linksRes] = await Promise.all([
+        axiosInstance.get('/dashboard/chart', { params: { view_type: viewType } }),
+        axiosInstance.get('/dashboard/saving-composition'),
+        axiosInstance.get('/dashboard/recent-activities'),
+        axiosInstance.get('/dashboard/quick-links')
+      ]);
+
+      if (chartRes.data.success) setChartData(chartRes.data.data);
+      if (compositionRes.data.success) setPieData(compositionRes.data.data);
+      if (activitiesRes.data.success) setRecentActivities(activitiesRes.data.data);
+      if (linksRes.data.success) setQuickLinks(linksRes.data.data);
+
+    } catch (error: any) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchDashboardData();
     setRefreshing(false);
-    
+
     if (addNotification) {
       addNotification({
         title: 'Data Diperbarui',
@@ -148,36 +148,36 @@ const fetchDashboardData = async () => {
     }).format(amount);
   };
 
-// AdminDashboard.tsx - Ganti loading spinner dengan skeleton
-if (loading) {
-  return (
-    <div className="space-y-8">
-      {/* Skeleton untuk header */}
-      <div className="flex justify-between">
-        <div className="space-y-2">
-          <div className="h-8 w-48 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
-          <div className="h-4 w-96 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
-        </div>
-        <div className="h-10 w-32 bg-gray-200 dark:bg-neutral-700 rounded-xl animate-pulse" />
-      </div>
-      
-      {/* Skeleton untuk 4 cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[1,2,3,4].map(i => (
-          <div key={i} className="glass-card p-6 rounded-3xl">
-            <div className="h-4 w-24 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse mb-4" />
-            <div className="h-8 w-32 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
+  // AdminDashboard.tsx - Ganti loading spinner dengan skeleton
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        {/* Skeleton untuk header */}
+        <div className="flex justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-48 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
+            <div className="h-4 w-96 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
           </div>
-        ))}
+          <div className="h-10 w-32 bg-gray-200 dark:bg-neutral-700 rounded-xl animate-pulse" />
+        </div>
+
+        {/* Skeleton untuk 4 cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="glass-card p-6 rounded-3xl">
+              <div className="h-4 w-24 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse mb-4" />
+              <div className="h-8 w-32 bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+
+        {/* Skeleton untuk chart */}
+        <div className="glass-card p-8 rounded-[2.5rem]">
+          <div className="h-[300px] bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
+        </div>
       </div>
-      
-      {/* Skeleton untuk chart */}
-      <div className="glass-card p-8 rounded-[2.5rem]">
-        <div className="h-[300px] bg-gray-200 dark:bg-neutral-700 rounded animate-pulse" />
-      </div>
-    </div>
-  );
-}
+    );
+  }
 
   const displayStats = stats.length > 0 ? stats : (viewType === 'monthly' ? [
     { label: 'Total Anggota', value: '245', color: 'bg-blue-500', trend: '+12' },
@@ -224,7 +224,7 @@ if (loading) {
   ];
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="space-y-8"
@@ -235,7 +235,7 @@ if (loading) {
           <p className="text-gray-500 dark:text-gray-400">{getDashboardDesc()}</p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={handleRefresh}
             disabled={refreshing}
             className="p-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl text-gray-500 hover:text-imigrasi-primary transition-colors"
@@ -243,7 +243,7 @@ if (loading) {
             <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
           </button>
           <div className="flex items-center bg-gray-100 dark:bg-neutral-800 p-1 rounded-xl">
-            <button 
+            <button
               onClick={() => setViewType('monthly')}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
@@ -252,7 +252,7 @@ if (loading) {
             >
               Bulanan
             </button>
-            <button 
+            <button
               onClick={() => setViewType('annual')}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
@@ -314,18 +314,18 @@ if (loading) {
               <AreaChart data={displayChartData}>
                 <defs>
                   <linearGradient id="colorSimpanan" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#002855" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#002855" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#002855" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#002855" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="colorPinjaman" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#C5A059" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#C5A059" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#C5A059" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#C5A059" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#999' }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#999' }} />
-                <Tooltip 
+                <Tooltip
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
                   itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
                   formatter={(value: number) => [`Rp ${value.toLocaleString('id-ID')}`, '']}
@@ -425,7 +425,7 @@ if (loading) {
             {displayQuickLinks.map((link, index) => {
               const IconComponent = getIconComponent(link.icon);
               return (
-                <button 
+                <button
                   key={index}
                   onClick={() => navigate(link.route)}
                   className="flex items-center gap-4 p-4 glass-card rounded-2xl hover:border-imigrasi-accent transition-all group relative"

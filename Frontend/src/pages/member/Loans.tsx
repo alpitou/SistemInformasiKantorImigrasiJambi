@@ -142,13 +142,13 @@ const Loans: React.FC = () => {
 
   const handleDownloadAgreement = async () => {
     if (!currentLoanId) return;
-    
+
     setIsLoading(true);
     try {
       const response = await api.get(`/loans/${currentLoanId}/generate-agreement`, {
         responseType: 'blob'
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -157,7 +157,7 @@ const Loans: React.FC = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       setHasDownloaded(true);
       addNotification({
         title: 'Dokumen Diunduh',
@@ -179,7 +179,7 @@ const Loans: React.FC = () => {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !currentLoanId) return;
-    
+
     if (file.type !== 'application/pdf' && !file.type.includes('image')) {
       addNotification({
         title: 'Error',
@@ -188,7 +188,7 @@ const Loans: React.FC = () => {
       });
       return;
     }
-    
+
     if (file.size > 5 * 1024 * 1024) {
       addNotification({
         title: 'Error',
@@ -197,22 +197,22 @@ const Loans: React.FC = () => {
       });
       return;
     }
-    
+
     setUploadedFile(file);
   };
 
   const handleUploadDocument = async () => {
     if (!uploadedFile || !currentLoanId) return;
-    
+
     setIsLoading(true);
     const formData = new FormData();
     formData.append('document', uploadedFile);
-    
+
     try {
       const response = await api.post(`/loans/${currentLoanId}/upload-document`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
+
       if (response.data.success) {
         setLoanStep(3);
         addNotification({
@@ -220,7 +220,7 @@ const Loans: React.FC = () => {
           message: 'Dokumen berhasil diunggah. Menunggu persetujuan admin.',
           type: 'success'
         });
-        
+
         setShowLoanModal(false);
         resetLoanForm();
         fetchLoans();
@@ -267,7 +267,7 @@ const Loans: React.FC = () => {
   const activeLoan = loans.find(l => l.status === 'active');
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="space-y-8"
@@ -276,7 +276,7 @@ const Loans: React.FC = () => {
       <AnimatePresence>
         {showLoanModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -286,7 +286,7 @@ const Loans: React.FC = () => {
                 resetLoanForm();
               }}
             />
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -303,7 +303,7 @@ const Loans: React.FC = () => {
                   <X size={20} />
                 </button>
               </div>
-              
+
               <div className="p-8 space-y-6 max-h-[80vh] overflow-y-auto">
                 {loanStep === 1 ? (
                   <>
@@ -311,18 +311,18 @@ const Loans: React.FC = () => {
                       <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Jumlah Pinjaman (IDR)</label>
                       <div className="relative">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">Rp</span>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           value={loanAmount}
                           onChange={(e) => setLoanAmount(e.target.value)}
-                          placeholder="Contoh: 5000000" 
+                          placeholder="Contoh: 5000000"
                           className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
                         />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Tenor (Bulan)</label>
-                      <select 
+                      <select
                         value={loanTenor}
                         onChange={(e) => setLoanTenor(e.target.value)}
                         className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
@@ -340,7 +340,7 @@ const Loans: React.FC = () => {
                         </p>
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={handleSubmitLoan}
                       disabled={isLoading || !loanAmount}
                       className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 disabled:opacity-50"
@@ -354,7 +354,7 @@ const Loans: React.FC = () => {
                       <FileText size={48} className="mx-auto text-blue-600 mb-3" />
                       <h4 className="font-bold text-gray-900 dark:text-white mb-2">Surat Perjanjian Pinjaman</h4>
                       <p className="text-xs text-gray-500 mb-4">Download, cetak, tanda tangani, lalu upload kembali</p>
-                      <button 
+                      <button
                         onClick={handleDownloadAgreement}
                         disabled={isLoading}
                         className="px-6 py-3 bg-imigrasi-accent text-imigrasi-primary font-bold rounded-xl hover:bg-white transition-all flex items-center justify-center gap-2 mx-auto"
@@ -370,20 +370,20 @@ const Loans: React.FC = () => {
                           <CheckCircle2 size={20} className="text-green-600 mb-2" />
                           <p className="text-xs text-green-700 dark:text-green-400">Dokumen telah diunduh. Silakan upload hasil scan yang sudah ditandatangani.</p>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Upload Dokumen (PDF/JPG/PNG)</label>
                           <div className="border-2 border-dashed border-gray-300 dark:border-neutral-600 rounded-2xl p-6 text-center">
                             <Upload size={32} className="mx-auto text-gray-400 mb-2" />
                             <p className="text-xs text-gray-500 mb-2">Klik atau drag file ke sini</p>
-                            <input 
+                            <input
                               type="file"
                               accept=".pdf,.jpg,.jpeg,.png"
                               onChange={handleFileUpload}
                               className="hidden"
                               id="document-upload"
                             />
-                            <label 
+                            <label
                               htmlFor="document-upload"
                               className="px-4 py-2 bg-gray-100 dark:bg-neutral-700 rounded-xl text-xs font-bold cursor-pointer inline-block"
                             >
@@ -395,7 +395,7 @@ const Loans: React.FC = () => {
                           </div>
                         </div>
 
-                        <button 
+                        <button
                           onClick={handleUploadDocument}
                           disabled={isLoading || !uploadedFile}
                           className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
@@ -425,14 +425,14 @@ const Loans: React.FC = () => {
       <AnimatePresence>
         {showScheduleModal && selectedLoan && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setShowScheduleModal(false)}
             />
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -487,8 +487,8 @@ const Loans: React.FC = () => {
                               {formatCurrency(installment.amount_paid)}
                             </p>
                             <p className="text-[10px] text-gray-400 capitalize">
-                              {installment.payment_method === 'potong_gaji' ? 'Potong Gaji' : 
-                               installment.payment_method === 'transfer' ? 'Transfer' : 'Tunai'}
+                              {installment.payment_method === 'potong_gaji' ? 'Potong Gaji' :
+                                installment.payment_method === 'transfer' ? 'Transfer' : 'Tunai'}
                             </p>
                           </div>
                         </div>
@@ -509,13 +509,13 @@ const Loans: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400">Pantau status pinjaman, angsuran, dan ajukan pinjaman baru.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={handleRefresh}
             className="p-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl text-gray-500 hover:text-imigrasi-primary transition-colors"
           >
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
           </button>
-          <button 
+          <button
             onClick={() => setShowLoanModal(true)}
             className="flex items-center gap-2 px-6 py-2 bg-imigrasi-primary text-white rounded-xl text-sm font-bold hover:bg-blue-900 transition-colors shadow-lg shadow-imigrasi-primary/20"
           >
@@ -548,7 +548,7 @@ const Loans: React.FC = () => {
                 <span className="text-white/60">Angsuran / Bln</span>
                 <span className="font-bold">{formatCurrency(activeLoan.monthly_installment)}</span>
               </div>
-              <button 
+              <button
                 onClick={() => handleViewSchedule(activeLoan)}
                 className="w-full py-3 bg-imigrasi-accent text-imigrasi-primary font-bold rounded-xl hover:bg-white transition-colors text-xs"
               >
@@ -566,7 +566,7 @@ const Loans: React.FC = () => {
             <h3 className="text-xl font-bold text-gray-900 dark:text-white">Tidak Ada Pinjaman Aktif</h3>
             <p className="text-gray-500 dark:text-gray-400 mt-2">Anda tidak memiliki pinjaman yang sedang berjalan saat ini.</p>
           </div>
-          <button 
+          <button
             onClick={() => setShowLoanModal(true)}
             className="px-8 py-3 bg-imigrasi-primary text-white font-bold rounded-xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20"
           >
@@ -590,7 +590,6 @@ const Loans: React.FC = () => {
                 <th className="px-6 py-4 font-bold">Angsuran/Bln</th>
                 <th className="px-6 py-4 font-bold">Tanggal</th>
                 <th className="px-6 py-4 font-bold text-center">Status</th>
-                <th className="px-6 py-4 font-bold text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
@@ -611,16 +610,6 @@ const Loans: React.FC = () => {
                       {formatDate(loan.created_at)}
                     </td>
                     <td className="px-6 py-4 text-center">{getStatusBadge(loan.status)}</td>
-                    <td className="px-6 py-4 text-center">
-                      {loan.status === 'active' && (
-                        <button 
-                          onClick={() => handleViewSchedule(loan)}
-                          className="text-imigrasi-primary hover:text-imigrasi-accent transition-colors"
-                        >
-                          <Eye size={18} />
-                        </button>
-                      )}
-                    </td>
                   </tr>
                 ))
               )}
