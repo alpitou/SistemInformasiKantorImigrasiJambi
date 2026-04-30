@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
-import { 
+import {
   LayoutDashboard, User as UserIcon, Wallet, HandCoins, History, FileText, LogOut, Menu, X, Bell, Moon, Sun,
   ShieldCheck, Users, PieChart, Settings, Archive, FileSpreadsheet, CheckCircle, TrendingUp,
   Database, HardDrive, Handshake, Clock, Banknote, ShoppingBag, Percent, Calendar as CalendarIcon,
@@ -23,7 +23,7 @@ const Layout: React.FC = () => {
   const location = useLocation();
 
   const userRole = user?.role?.name || user?.role || 'anggota';
-  
+
   const isAdminRole = () => {
     const adminRoles = ['admin', 'ketua', 'bendahara', 'sekretaris'];
     return adminRoles.includes(userRole);
@@ -35,11 +35,11 @@ const Layout: React.FC = () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
-        
+
         const response = await fetch('/api/withdrawals', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
@@ -49,7 +49,7 @@ const Layout: React.FC = () => {
             } else if (userRole === 'ketua') {
               count = data.data.filter((w: any) => w.status === 'pending_chairman').length;
             } else if (userRole === 'admin') {
-              count = data.data.filter((w: any) => 
+              count = data.data.filter((w: any) =>
                 w.status === 'pending_treasurer' || w.status === 'pending_chairman'
               ).length;
             }
@@ -60,7 +60,7 @@ const Layout: React.FC = () => {
         console.error('Failed to fetch pending withdrawals:', error);
       }
     };
-    
+
     if (isAdminRole() && (userRole === 'bendahara' || userRole === 'ketua' || userRole === 'admin')) {
       fetchPendingWithdrawals();
       const interval = setInterval(fetchPendingWithdrawals, 30000);
@@ -76,10 +76,10 @@ const Layout: React.FC = () => {
       { icon: ShieldCheck, label: 'Persetujuan Pinjaman', path: '/admin/approvals', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: CheckCircle, label: 'Verifikasi Setoran', path: '/admin/savings-verification', roles: ['admin', 'bendahara'] },
       // MENU PERSETUJUAN PENARIKAN - BARU
-      { 
-        icon: HandCoins, 
-        label: 'Persetujuan Penarikan', 
-        path: '/admin/withdrawals', 
+      {
+        icon: HandCoins,
+        label: 'Persetujuan Penarikan',
+        path: '/admin/withdrawals',
         roles: ['admin', 'ketua', 'bendahara'],
         badge: pendingWithdrawalsCount,
         badgeColor: 'bg-red-500'
@@ -142,22 +142,22 @@ const Layout: React.FC = () => {
         try {
           const token = localStorage.getItem('token');
           if (!token) return;
-          
+
           const response = await fetch('/api/savings?status=pending', {
-            headers: { 
+            headers: {
               'Authorization': `Bearer ${token}`,
               'Accept': 'application/json'
             }
           });
-          
+
           if (!response.ok) return;
-          
+
           const data = await response.json();
           if (data.success && data.data && data.data.length > 0) {
             const pendingCount = data.data.filter(
               (s: any) => s.transaction_type === 'deposit' && s.verification_status === 'pending'
             ).length;
-            
+
             if (pendingCount > 0) {
               const notifiedKey = `savings_notified_${new Date().toDateString()}`;
               if (!sessionStorage.getItem(notifiedKey)) {
@@ -175,7 +175,7 @@ const Layout: React.FC = () => {
           console.error('Error checking pending savings:', error);
         }
       };
-      
+
       checkPendingSavings();
       const interval = setInterval(checkPendingSavings, 60000);
       return () => clearInterval(interval);
@@ -189,11 +189,11 @@ const Layout: React.FC = () => {
         try {
           const token = localStorage.getItem('token');
           if (!token) return;
-          
+
           const response = await fetch('/api/withdrawals', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
-          
+
           if (response.ok) {
             const data = await response.json();
             if (data.success) {
@@ -203,11 +203,11 @@ const Layout: React.FC = () => {
               } else if (userRole === 'ketua') {
                 pendingCount = data.data.filter((w: any) => w.status === 'pending_chairman').length;
               } else if (userRole === 'admin') {
-                pendingCount = data.data.filter((w: any) => 
+                pendingCount = data.data.filter((w: any) =>
                   w.status === 'pending_treasurer' || w.status === 'pending_chairman'
                 ).length;
               }
-              
+
               if (pendingCount > 0) {
                 const notifiedKey = `withdrawal_notified_${new Date().toDateString()}`;
                 if (!sessionStorage.getItem(notifiedKey)) {
@@ -226,7 +226,7 @@ const Layout: React.FC = () => {
           console.error('Error checking pending withdrawals:', error);
         }
       };
-      
+
       checkPendingWithdrawals();
       const interval = setInterval(checkPendingWithdrawals, 60000);
       return () => clearInterval(interval);
@@ -239,7 +239,7 @@ const Layout: React.FC = () => {
       const lastBackupKey = 'last_backup_reminder';
       const lastBackupDate = localStorage.getItem(lastBackupKey);
       const now = new Date();
-      
+
       if (!lastBackupDate || (now.getTime() - new Date(lastBackupDate).getTime()) > 7 * 24 * 60 * 60 * 1000) {
         const timer = setTimeout(() => {
           addNotification({
@@ -257,18 +257,18 @@ const Layout: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-imigrasi-neutral-light dark:bg-neutral-900">
-      <motion.aside 
+      <motion.aside
         initial={false}
         animate={{ width: isSidebarOpen ? 280 : 80 }}
         className={cn(
           "hidden md:flex flex-col sticky top-0 h-screen z-30 shadow-2xl transition-colors duration-300",
           isDarkMode ? "bg-neutral-950 border-r border-neutral-800" : "bg-imigrasi-primary text-white"
         )}
-      >
+       >
         <div className="p-5 flex items-center justify-between overflow-hidden shrink-0">
           <AnimatePresence mode="wait">
             {isSidebarOpen && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
@@ -284,7 +284,7 @@ const Layout: React.FC = () => {
               </motion.div>
             )}
           </AnimatePresence>
-          <button 
+          <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className={cn(
               "p-1.5 rounded-lg transition-colors shrink-0",
@@ -297,53 +297,55 @@ const Layout: React.FC = () => {
 
         <nav className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
           <div className="space-y-1">
-        <nav className="flex-1 px-4 py-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
-          <div className="space-y-2">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.end}
-                className={({ isActive }) => cn(
-                  "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200 group relative",
-                  isActive 
-                  ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent shadow-[0_0_15px_rgba(212,175,55,0.1)]" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg") 
-                  : (isDarkMode ? "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-900" : "text-white/70 hover:text-white hover:bg-white/10")
-                )}
-              >
-                <item.icon size={18} className="shrink-0" />
-                {isSidebarOpen && (
-                  <>
-                    <span className="font-medium text-sm">{item.label}</span>
-                    {(item as any).badge > 0 && (
-                      <span className={cn(
-                        "ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white",
-                        (item as any).badgeColor || "bg-red-500"
-                      )}>
-                        {(item as any).badge}
-                      </span>
+            <nav className="flex-1 px-4 py-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
+              <div className="space-y-2">
+                {navItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.end}
+                    className={({ isActive }) => cn(
+                      "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200 group relative",
+                      isActive
+                        ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent shadow-[0_0_15px_rgba(212,175,55,0.1)]" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg")
+                        : (isDarkMode ? "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-900" : "text-white/70 hover:text-white hover:bg-white/10")
                     )}
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </div>
-          
-          {isSidebarOpen && (
-            <div className="mt-6 pt-4 border-t border-white/10">
-              <div className="text-[9px] text-white/40 text-center">
-                <p>© {new Date().getFullYear()} SIMKOP-IM</p>
-                <p className="mt-1">Koperasi Kanim Jambi</p>
+                  >
+                    <item.icon size={18} className="shrink-0" />
+                    {isSidebarOpen && (
+                      <>
+                        <span className="font-medium text-sm">{item.label}</span>
+                        {(item as any).badge > 0 && (
+                          <span className={cn(
+                            "ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white",
+                            (item as any).badgeColor || "bg-red-500"
+                          )}>
+                            {(item as any).badge}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </NavLink>
+                ))}
               </div>
-            </div>
-          )}
+
+              {isSidebarOpen && (
+                <div className="mt-6 pt-4 border-t border-white/10">
+                  <div className="text-[9px] text-white/40 text-center">
+                    <p>© {new Date().getFullYear()} SIMKOP-IM</p>
+                    <p className="mt-1">Koperasi Kanim Jambi</p>
+                  </div>
+                </div>
+              )}
+            </nav>
+          </div>
         </nav>
       </motion.aside>
 
       {/* Mobile Menu - same as before but with withdrawal menu */}
       <AnimatePresence>
         {isMobileMenuOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -385,9 +387,9 @@ const Layout: React.FC = () => {
                 end={item.end}
                 className={({ isActive }) => cn(
                   "w-full flex items-center gap-3 p-3 rounded-lg transition-all",
-                  isActive 
-                  ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg") 
-                  : (isDarkMode ? "text-neutral-500 hover:text-neutral-200" : "text-white/70 hover:text-white")
+                  isActive
+                    ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg")
+                    : (isDarkMode ? "text-neutral-500 hover:text-neutral-200" : "text-white/70 hover:text-white")
                 )}
                 onClick={() => setIsMobileMenuOpen(false)}
               >
@@ -423,7 +425,7 @@ const Layout: React.FC = () => {
             <button onClick={toggleDarkMode} className="p-2 rounded-full bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors">
               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-            
+
             <div className="relative">
               <button onClick={() => setIsNotificationOpen(!isNotificationOpen)} className="p-2 rounded-full bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors relative">
                 <Bell size={16} />
@@ -435,14 +437,14 @@ const Layout: React.FC = () => {
               <AnimatePresence>
                 {isNotificationOpen && (
                   <>
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       className="fixed inset-0 z-40"
                       onClick={() => setIsNotificationOpen(false)}
                     />
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -461,8 +463,8 @@ const Layout: React.FC = () => {
                           </div>
                         ) : (
                           notifications.map((n) => (
-                            <div 
-                              key={n.id} 
+                            <div
+                              key={n.id}
                               onClick={() => {
                                 markAsRead(n.id);
                                 if (n.link) {
@@ -471,7 +473,7 @@ const Layout: React.FC = () => {
                                 }
                               }}
                               className={cn(
-                                "p-3 border-b border-gray-50 dark:border-neutral-700/50 hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors cursor-pointer", 
+                                "p-3 border-b border-gray-50 dark:border-neutral-700/50 hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors cursor-pointer",
                                 !n.read && "bg-blue-50/50 dark:bg-blue-900/10"
                               )}
                             >
@@ -502,14 +504,14 @@ const Layout: React.FC = () => {
               <AnimatePresence>
                 {isProfileOpen && (
                   <>
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       className="fixed inset-0 z-40"
                       onClick={() => setIsProfileOpen(false)}
                     />
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
