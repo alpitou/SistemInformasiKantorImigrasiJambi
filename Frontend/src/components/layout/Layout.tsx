@@ -59,12 +59,11 @@ const Layout: React.FC = () => {
 
   const navItems = isAdminRole() ? getAllAdminMenus() : memberNavItems;
 
-  // Fungsi untuk mengecek apakah path aktif dengan lebih baik
   const isPathActive = (itemPath: string, end?: boolean) => {
     if (end) {
       return location.pathname === itemPath;
     }
-    // Untuk menghindari /admin yang selalu match dengan /admin/*
+
     if (itemPath === '/admin') {
       return location.pathname === '/admin';
     }
@@ -198,7 +197,6 @@ const Layout: React.FC = () => {
           </button>
         </div>
 
-        {/* Perbaikan scroll di sini */}
         <nav className="flex-1 px-4 py-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
           <div className="space-y-2">
             {navItems.map((item) => (
