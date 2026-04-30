@@ -108,7 +108,6 @@ const Loans: React.FC = () => {
         setLoanSettings(parsed);
         setLoanTenor(parsed.max_tenor_months.toString());
       } else {
-        // Set default
         localStorage.setItem('loan_settings', JSON.stringify(DEFAULT_LOAN_SETTINGS));
         setLoanTenor(DEFAULT_LOAN_SETTINGS.max_tenor_months.toString());
       }
@@ -234,6 +233,7 @@ const Loans: React.FC = () => {
     return true;
   };
 
+  // ========== PERBAIKAN UTAMA: SUBMIT PINJAMAN ==========
   const handleSubmitLoan = async () => {
     if (!loanAmount || !loanTenor) {
       addNotification({
@@ -249,6 +249,7 @@ const Loans: React.FC = () => {
 
     setIsLoading(true);
     try {
+      // Step 1: Create loan application in database
       const response = await api.post('/loans', {
         amount: amount,
         tenor_months: parseInt(loanTenor),
@@ -259,10 +260,10 @@ const Loans: React.FC = () => {
       if (response.data.success) {
         const newLoan = response.data.data;
         setCurrentLoanId(newLoan.id);
-        setLoanStep(2);
+        setLoanStep(2); // Move to document upload step
         addNotification({
           title: 'Pengajuan Dibuat',
-          message: 'Silakan download, cetak, tanda tangani surat perjanjian, lalu upload kembali.',
+          message: 'Pengajuan pinjaman berhasil dibuat. Silakan download surat perjanjian.',
           type: 'success'
         });
       }
@@ -278,6 +279,7 @@ const Loans: React.FC = () => {
     }
   };
 
+  // ========== DOWNLOAD SURAT PERJANJIAN ==========
   const handleDownloadAgreement = async () => {
     if (!currentLoanId) return;
 
@@ -299,7 +301,7 @@ const Loans: React.FC = () => {
       setHasDownloaded(true);
       addNotification({
         title: 'Dokumen Diunduh',
-        message: 'Silakan cetak, tanda tangani di atas materai, dan unggah kembali.',
+        message: 'Silakan cetak, tanda tangani di atas materai (Rp 10.000), dan unggah kembali.',
         type: 'info'
       });
     } catch (error) {
@@ -359,11 +361,7 @@ const Loans: React.FC = () => {
           type: 'success'
         });
 
-        setShowLoanModal(false);
-        resetLoanForm();
-        fetchLoans();
-        
-        // Close modal after short delay
+        // Refresh loan list and close modal after delay
         setTimeout(() => {
           setShowLoanModal(false);
           resetLoanForm();
@@ -475,8 +473,6 @@ const Loans: React.FC = () => {
                 </button>
               </div>
 
-              <div className="p-8 space-y-6 max-h-[80vh] overflow-y-auto">
-              
               <div className="p-6 space-y-6">
                 {loanStep === 1 ? (
                   <>
@@ -492,9 +488,7 @@ const Loans: React.FC = () => {
                           type="number"
                           value={loanAmount}
                           onChange={(e) => setLoanAmount(e.target.value)}
-                          placeholder="Contoh: 5000000"
-                          className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
-                          placeholder={`Min ${formatCurrency(loanSettings.min_loan_amount)} - Max ${formatCurrency(loanSettings.max_loan_amount)}`} 
+                          placeholder={`Min ${formatCurrency(loanSettings.min_loan_amount)} - Max ${formatCurrency(loanSettings.max_loan_amount)}`}
                           className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-xl outline-none transition-all dark:text-white"
                         />
                       </div>
@@ -506,8 +500,6 @@ const Loans: React.FC = () => {
 
                     {/* Tenor Selection */}
                     <div className="space-y-2">
-                      <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Tenor (Bulan)</label>
-                      <select
                       <label className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                         <Calendar size={16} className="text-imigrasi-primary" />
                         Tenor (Bulan)
@@ -584,7 +576,6 @@ const Loans: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <button
 
                     <button 
                       onClick={handleSubmitLoan}
@@ -592,7 +583,7 @@ const Loans: React.FC = () => {
                       className="w-full py-3 bg-imigrasi-primary text-white font-bold rounded-xl hover:bg-blue-900 transition-all shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {isLoading ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
-                      {isLoading ? 'Memproses...' : 'Lanjut ke Dokumen'}
+                      {isLoading ? 'Memproses...' : 'Ajukan Pinjaman'}
                     </button>
                   </>
                 ) : loanStep === 2 ? (
@@ -600,9 +591,7 @@ const Loans: React.FC = () => {
                     <div className="p-6 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-center">
                       <FileText size={48} className="mx-auto text-blue-600 mb-3" />
                       <h4 className="font-bold text-gray-900 dark:text-white mb-2">Surat Perjanjian Pinjaman</h4>
-                      <p className="text-xs text-gray-500 mb-4">Download, cetak, tanda tangani, lalu upload kembali</p>
-                      <button
-                      <p className="text-xs text-gray-500 mb-4">Download, cetak, tanda tangani di atas materai, lalu upload kembali</p>
+                      <p className="text-xs text-gray-500 mb-4">Download, cetak, tanda tangani di atas materai Rp 10.000, lalu upload kembali</p>
                       <button 
                         onClick={handleDownloadAgreement}
                         disabled={isLoading}
@@ -621,7 +610,7 @@ const Loans: React.FC = () => {
                             <p className="text-sm font-bold text-green-700">Dokumen telah diunduh</p>
                           </div>
                           <p className="text-xs text-green-700 dark:text-green-400">
-                            Silakan cetak, isi, tanda tangani di atas materai, lalu upload hasil scan/photo dokumen yang sudah ditandatangani.
+                            Silakan cetak, isi, tanda tangani di atas materai Rp 10.000, lalu upload hasil scan/photo dokumen yang sudah ditandatangani.
                           </p>
                         </div>
 
@@ -632,8 +621,6 @@ const Loans: React.FC = () => {
                           </label>
                           <div className="border-2 border-dashed border-gray-300 dark:border-neutral-600 rounded-xl p-6 text-center hover:border-imigrasi-primary transition-colors">
                             <Upload size={32} className="mx-auto text-gray-400 mb-2" />
-                            <p className="text-xs text-gray-500 mb-2">Klik atau drag file ke sini</p>
-                            <input
                             <p className="text-xs text-gray-500 mb-2">Klik untuk memilih file, maksimal 5MB</p>
                             <input 
                               type="file"
@@ -642,7 +629,7 @@ const Loans: React.FC = () => {
                               className="hidden"
                               id="document-upload"
                             />
-                            <label
+                            <label 
                               htmlFor="document-upload"
                               className="inline-block px-4 py-2 bg-gray-100 dark:bg-neutral-700 rounded-lg text-xs font-bold cursor-pointer hover:bg-gray-200 transition-colors"
                             >
@@ -657,7 +644,7 @@ const Loans: React.FC = () => {
                           </div>
                         </div>
 
-                        <button
+                        <button 
                           onClick={handleUploadDocument}
                           disabled={isLoading || !uploadedFile}
                           className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
@@ -684,7 +671,7 @@ const Loans: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Schedule Modal */}
+      {/* Schedule Modal - same as before */}
       <AnimatePresence>
         {showScheduleModal && selectedLoan && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -753,9 +740,6 @@ const Loans: React.FC = () => {
                             <p className="text-sm font-bold text-emerald-600">
                               {formatCurrency(installment.amount_paid)}
                             </p>
-                            <p className="text-[10px] text-gray-400 capitalize">
-                              {installment.payment_method === 'potong_gaji' ? 'Potong Gaji' :
-                                installment.payment_method === 'transfer' ? 'Transfer' : 'Tunai'}
                             <p className="text-[10px] text-gray-400 capitalize flex items-center gap-1">
                               {installment.payment_method === 'potong_gaji' ? '💰 Potong Gaji' : 
                                installment.payment_method === 'transfer' ? '💳 Transfer' : '💵 Tunai'}
@@ -848,21 +832,6 @@ const Loans: React.FC = () => {
                 {getStatusBadge(activeLoan.status)}
                 <span className="text-xs text-white/60 font-mono">ID: {activeLoan.id}</span>
               </div>
-              <div>
-                <p className="text-white/60 text-sm font-bold uppercase tracking-widest mb-2">Sisa Pinjaman</p>
-                <h2 className="text-4xl md:text-5xl font-black">{formatCurrency(activeLoan.remaining_balance)}</h2>
-              </div>
-            </div>
-            <div className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-white/60">Total Pinjaman</span>
-                <span className="font-bold">{formatCurrency(activeLoan.amount)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/60">Angsuran / Bln</span>
-                <span className="font-bold">{formatCurrency(activeLoan.monthly_installment)}</span>
-              </div>
-              <button
               <button 
                 onClick={() => handleViewSchedule(activeLoan)}
                 className="px-3 py-1.5 bg-white/10 text-white rounded-lg text-xs font-bold hover:bg-white/20 transition-colors"
@@ -913,23 +882,6 @@ const Loans: React.FC = () => {
           <h3 className="font-bold text-lg text-gray-900 dark:text-white">Riwayat Pinjaman</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-neutral-800/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
-                <th className="px-6 py-4 font-bold">ID</th>
-                <th className="px-6 py-4 font-bold">Jumlah</th>
-                <th className="px-6 py-4 font-bold">Tenor</th>
-                <th className="px-6 py-4 font-bold">Angsuran/Bln</th>
-                <th className="px-6 py-4 font-bold">Tanggal</th>
-                <th className="px-6 py-4 font-bold text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
-              {loans.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    Belum ada riwayat pinjaman
-                  </td>
           {loans.length === 0 ? (
             <div className="p-10 text-center">
               <FileText size={40} className="mx-auto text-gray-300 mb-3" />
@@ -951,14 +903,6 @@ const Loans: React.FC = () => {
               <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
                 {loans.map((loan) => (
                   <tr key={loan.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors">
-                    <td className="px-6 py-4 text-sm font-mono text-gray-600 dark:text-gray-300">#{loan.id}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(loan.amount)}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{loan.tenor_months} Bln</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{formatCurrency(loan.monthly_installment)}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {formatDate(loan.created_at)}
-                    </td>
-                    <td className="px-6 py-4 text-center">{getStatusBadge(loan.status)}</td>
                     <td className="px-5 py-3 text-sm font-mono text-gray-600 dark:text-gray-300">#{loan.id}</td>
                     <td className="px-5 py-3 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(loan.amount)}</td>
                     <td className="px-5 py-3 text-sm text-gray-600 dark:text-gray-300">{loan.tenor_months} Bln</td>

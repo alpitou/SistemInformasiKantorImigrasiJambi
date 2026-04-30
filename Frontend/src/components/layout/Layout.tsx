@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications } from '../../hooks/useNotifications';
-import {
+import { 
   LayoutDashboard, User as UserIcon, Wallet, HandCoins, History, FileText, LogOut, Menu, X, Bell, Moon, Sun,
   ShieldCheck, Users, PieChart, Settings, Archive, FileSpreadsheet, CheckCircle, TrendingUp,
-  Database, HardDrive
+  Database, HardDrive, Handshake, Clock, Banknote, ShoppingBag, Percent, Calendar as CalendarIcon,
+  AlertCircle, CheckSquare, FileCheck, Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -17,17 +18,56 @@ const Layout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
 
   const userRole = user?.role?.name || user?.role || 'anggota';
-
+  
   const isAdminRole = () => {
     const adminRoles = ['admin', 'ketua', 'bendahara', 'sekretaris'];
     return adminRoles.includes(userRole);
   };
 
-  // Admin menus yang sudah diperbaiki - menambahkan Backup Database
+  // Fetch pending withdrawals count for badge
+  useEffect(() => {
+    const fetchPendingWithdrawals = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        const response = await fetch('/api/withdrawals', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            let count = 0;
+            if (userRole === 'bendahara') {
+              count = data.data.filter((w: any) => w.status === 'pending_treasurer').length;
+            } else if (userRole === 'ketua') {
+              count = data.data.filter((w: any) => w.status === 'pending_chairman').length;
+            } else if (userRole === 'admin') {
+              count = data.data.filter((w: any) => 
+                w.status === 'pending_treasurer' || w.status === 'pending_chairman'
+              ).length;
+            }
+            setPendingWithdrawalsCount(count);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch pending withdrawals:', error);
+      }
+    };
+    
+    if (isAdminRole() && (userRole === 'bendahara' || userRole === 'ketua' || userRole === 'admin')) {
+      fetchPendingWithdrawals();
+      const interval = setInterval(fetchPendingWithdrawals, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [userRole]);
+
   const getAllAdminMenus = () => {
     const menus = [
       { icon: LayoutDashboard, label: 'Dashboard Admin', path: '/admin', end: true, roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
@@ -35,12 +75,20 @@ const Layout: React.FC = () => {
       { icon: Wallet, label: 'Manajemen Keuangan', path: '/admin/finance', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: ShieldCheck, label: 'Persetujuan Pinjaman', path: '/admin/approvals', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: CheckCircle, label: 'Verifikasi Setoran', path: '/admin/savings-verification', roles: ['admin', 'bendahara'] },
+      // MENU PERSETUJUAN PENARIKAN - BARU
+      { 
+        icon: HandCoins, 
+        label: 'Persetujuan Penarikan', 
+        path: '/admin/withdrawals', 
+        roles: ['admin', 'ketua', 'bendahara'],
+        badge: pendingWithdrawalsCount,
+        badgeColor: 'bg-red-500'
+      },
       { icon: FileSpreadsheet, label: 'Ekspor Potongan', path: '/admin/deductions', roles: ['admin', 'bendahara'] },
       { icon: TrendingUp, label: 'Potongan Payroll', path: '/admin/payroll', roles: ['admin', 'bendahara'] },
       { icon: Archive, label: 'Arsip Perjanjian', path: '/admin/loan-archives', roles: ['admin', 'ketua', 'sekretaris'] },
       { icon: FileText, label: 'Upload Dokumen', path: '/admin/documents', roles: ['admin', 'ketua', 'sekretaris'] },
       { icon: FileText, label: 'Laporan', path: '/admin/reports', roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
-      // MENU BACKUP DATABASE - DITAMBAHKAN DISINI
       { icon: Database, label: 'Backup Database', path: '/admin/backup', roles: ['admin', 'ketua', 'bendahara'] },
       { icon: Settings, label: 'Pengaturan', path: '/admin/settings', roles: ['admin', 'ketua', 'bendahara', 'sekretaris'] },
     ];
@@ -58,18 +106,6 @@ const Layout: React.FC = () => {
   ];
 
   const navItems = isAdminRole() ? getAllAdminMenus() : memberNavItems;
-
-  // Fungsi untuk mengecek apakah path aktif dengan lebih baik
-  const isPathActive = (itemPath: string, end?: boolean) => {
-    if (end) {
-      return location.pathname === itemPath;
-    }
-    // Untuk menghindari /admin yang selalu match dengan /admin/*
-    if (itemPath === '/admin') {
-      return location.pathname === '/admin';
-    }
-    return location.pathname.startsWith(itemPath);
-  };
 
   useEffect(() => {
     if (isAdminRole() && (userRole === 'bendahara' || userRole === 'ketua' || userRole === 'admin')) {
@@ -95,22 +131,22 @@ const Layout: React.FC = () => {
         try {
           const token = localStorage.getItem('token');
           if (!token) return;
-
+          
           const response = await fetch('/api/savings?status=pending', {
-            headers: {
+            headers: { 
               'Authorization': `Bearer ${token}`,
               'Accept': 'application/json'
             }
           });
-
+          
           if (!response.ok) return;
-
+          
           const data = await response.json();
           if (data.success && data.data && data.data.length > 0) {
             const pendingCount = data.data.filter(
               (s: any) => s.transaction_type === 'deposit' && s.verification_status === 'pending'
             ).length;
-
+            
             if (pendingCount > 0) {
               const notifiedKey = `savings_notified_${new Date().toDateString()}`;
               if (!sessionStorage.getItem(notifiedKey)) {
@@ -128,21 +164,71 @@ const Layout: React.FC = () => {
           console.error('Error checking pending savings:', error);
         }
       };
-
+      
       checkPendingSavings();
       const interval = setInterval(checkPendingSavings, 60000);
       return () => clearInterval(interval);
     }
   }, [userRole, addNotification]);
 
-  // Cek apakah ada backup yang perlu diingatkan
+  // Check pending withdrawals for notification
+  useEffect(() => {
+    if (isAdminRole() && (userRole === 'bendahara' || userRole === 'ketua' || userRole === 'admin')) {
+      const checkPendingWithdrawals = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) return;
+          
+          const response = await fetch('/api/withdrawals', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              let pendingCount = 0;
+              if (userRole === 'bendahara') {
+                pendingCount = data.data.filter((w: any) => w.status === 'pending_treasurer').length;
+              } else if (userRole === 'ketua') {
+                pendingCount = data.data.filter((w: any) => w.status === 'pending_chairman').length;
+              } else if (userRole === 'admin') {
+                pendingCount = data.data.filter((w: any) => 
+                  w.status === 'pending_treasurer' || w.status === 'pending_chairman'
+                ).length;
+              }
+              
+              if (pendingCount > 0) {
+                const notifiedKey = `withdrawal_notified_${new Date().toDateString()}`;
+                if (!sessionStorage.getItem(notifiedKey)) {
+                  addNotification({
+                    title: 'Pengajuan Penarikan Baru',
+                    message: `Terdapat ${pendingCount} pengajuan penarikan yang memerlukan persetujuan Anda.`,
+                    type: 'warning',
+                    link: '/admin/withdrawals'
+                  });
+                  sessionStorage.setItem(notifiedKey, 'true');
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error checking pending withdrawals:', error);
+        }
+      };
+      
+      checkPendingWithdrawals();
+      const interval = setInterval(checkPendingWithdrawals, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [userRole, addNotification]);
+
+  // Reminder backup setiap 7 hari sekali
   useEffect(() => {
     if (isAdminRole() && (userRole === 'admin' || userRole === 'ketua' || userRole === 'bendahara')) {
       const lastBackupKey = 'last_backup_reminder';
       const lastBackupDate = localStorage.getItem(lastBackupKey);
       const now = new Date();
-
-      // Reminder backup setiap 7 hari sekali
+      
       if (!lastBackupDate || (now.getTime() - new Date(lastBackupDate).getTime()) > 7 * 24 * 60 * 60 * 1000) {
         const timer = setTimeout(() => {
           addNotification({
@@ -160,7 +246,7 @@ const Layout: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-imigrasi-neutral-light dark:bg-neutral-900">
-      <motion.aside
+      <motion.aside 
         initial={false}
         animate={{ width: isSidebarOpen ? 280 : 80 }}
         className={cn(
@@ -168,61 +254,71 @@ const Layout: React.FC = () => {
           isDarkMode ? "bg-neutral-950 border-r border-neutral-800" : "bg-imigrasi-primary text-white"
         )}
       >
-        <div className="p-6 flex items-center justify-between overflow-hidden shrink-0">
+        <div className="p-5 flex items-center justify-between overflow-hidden shrink-0">
           <AnimatePresence mode="wait">
             {isSidebarOpen && (
-              <motion.div
+              <motion.div 
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="flex items-center gap-3 whitespace-nowrap"
+                className="flex items-center gap-2 whitespace-nowrap"
               >
-                <div className="w-10 h-10 bg-imigrasi-accent rounded-lg flex items-center justify-center font-bold text-imigrasi-primary shadow-lg">
+                <div className="w-8 h-8 bg-imigrasi-accent rounded-lg flex items-center justify-center font-bold text-imigrasi-primary shadow-lg text-sm">
                   SIM
                 </div>
                 <div className={cn(isDarkMode ? "text-white" : "text-white")}>
-                  <h1 className="font-bold text-lg leading-tight">SIMKOP-IM</h1>
-                  <p className="text-[10px] text-imigrasi-accent uppercase tracking-widest font-semibold">Kanim Jambi</p>
+                  <h1 className="font-bold text-base leading-tight">SIMKOP-IM</h1>
+                  <p className="text-[9px] text-imigrasi-accent uppercase tracking-widest font-semibold">Kanim Jambi</p>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
-          <button
+          <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className={cn(
-              "p-2 rounded-lg transition-colors shrink-0",
+              "p-1.5 rounded-lg transition-colors shrink-0",
               isDarkMode ? "hover:bg-neutral-800 text-neutral-400" : "hover:bg-white/10 text-white"
             )}
           >
-            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            {isSidebarOpen ? <X size={16} /> : <Menu size={16} />}
           </button>
         </div>
 
-        {/* Perbaikan scroll di sini */}
-        <nav className="flex-1 px-4 py-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
-          <div className="space-y-2">
+        <nav className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
+          <div className="space-y-1">
             {navItems.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
                 end={item.end}
                 className={({ isActive }) => cn(
-                  "w-full flex items-center gap-4 p-3 rounded-xl transition-all duration-200 group relative",
-                  isActive
-                    ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent shadow-[0_0_20px_rgba(212,175,55,0.1)]" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg")
-                    : (isDarkMode ? "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-900" : "text-white/70 hover:text-white hover:bg-white/10")
+                  "w-full flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200 group relative",
+                  isActive 
+                  ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent shadow-[0_0_15px_rgba(212,175,55,0.1)]" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg") 
+                  : (isDarkMode ? "text-neutral-500 hover:text-neutral-200 hover:bg-neutral-900" : "text-white/70 hover:text-white hover:bg-white/10")
                 )}
               >
-                <item.icon size={22} className="shrink-0" />
-                {isSidebarOpen && <span className="font-medium">{item.label}</span>}
+                <item.icon size={18} className="shrink-0" />
+                {isSidebarOpen && (
+                  <>
+                    <span className="font-medium text-sm">{item.label}</span>
+                    {(item as any).badge > 0 && (
+                      <span className={cn(
+                        "ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white",
+                        (item as any).badgeColor || "bg-red-500"
+                      )}>
+                        {(item as any).badge}
+                      </span>
+                    )}
+                  </>
+                )}
               </NavLink>
             ))}
           </div>
-
-          {/* Footer credits di sidebar - hanya muncul saat sidebar terbuka */}
+          
           {isSidebarOpen && (
-            <div className="mt-8 pt-4 border-t border-white/10">
-              <div className="text-[10px] text-white/40 text-center">
+            <div className="mt-6 pt-4 border-t border-white/10">
+              <div className="text-[9px] text-white/40 text-center">
                 <p>© {new Date().getFullYear()} SIMKOP-IM</p>
                 <p className="mt-1">Koperasi Kanim Jambi</p>
               </div>
@@ -231,9 +327,10 @@ const Layout: React.FC = () => {
         </nav>
       </motion.aside>
 
+      {/* Mobile Menu - same as before but with withdrawal menu */}
       <AnimatePresence>
         {isMobileMenuOpen && (
-          <motion.div
+          <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -252,37 +349,45 @@ const Layout: React.FC = () => {
           isDarkMode ? "bg-neutral-950 border-r border-neutral-800" : "bg-imigrasi-primary text-white"
         )}
       >
-        <div className="p-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-imigrasi-accent rounded-lg flex items-center justify-center font-bold text-imigrasi-primary">
+        <div className="p-5 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-imigrasi-accent rounded-lg flex items-center justify-center font-bold text-imigrasi-primary text-sm">
               SIM
             </div>
             <div>
-              <h1 className="font-bold text-lg">SIMKOP-IM</h1>
-              <p className="text-[10px] text-imigrasi-accent">Kanim Jambi</p>
+              <h1 className="font-bold text-base">SIMKOP-IM</h1>
+              <p className="text-[9px] text-imigrasi-accent">Kanim Jambi</p>
             </div>
           </div>
           <button onClick={() => setIsMobileMenuOpen(false)}>
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
-        <nav className="flex-1 px-4 py-4 overflow-y-auto overflow-x-hidden">
-          <div className="space-y-2">
+        <nav className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden">
+          <div className="space-y-1">
             {navItems.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
                 end={item.end}
                 className={({ isActive }) => cn(
-                  "w-full flex items-center gap-4 p-4 rounded-xl transition-all",
-                  isActive
-                    ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg")
-                    : (isDarkMode ? "text-neutral-500 hover:text-neutral-200" : "text-white/70 hover:text-white")
+                  "w-full flex items-center gap-3 p-3 rounded-lg transition-all",
+                  isActive 
+                  ? (isDarkMode ? "bg-imigrasi-accent/10 text-imigrasi-accent" : "bg-imigrasi-accent text-imigrasi-primary shadow-lg") 
+                  : (isDarkMode ? "text-neutral-500 hover:text-neutral-200" : "text-white/70 hover:text-white")
                 )}
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                <item.icon size={22} />
-                <span className="font-medium">{item.label}</span>
+                <item.icon size={18} />
+                <span className="font-medium text-sm">{item.label}</span>
+                {(item as any).badge > 0 && (
+                  <span className={cn(
+                    "ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white",
+                    (item as any).badgeColor || "bg-red-500"
+                  )}>
+                    {(item as any).badge}
+                  </span>
+                )}
               </NavLink>
             ))}
           </div>
@@ -290,61 +395,61 @@ const Layout: React.FC = () => {
       </motion.aside>
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-20 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20 shrink-0">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 text-gray-600 dark:text-gray-300">
-              <Menu size={24} />
+        <header className="h-16 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 flex items-center justify-between px-4 md:px-6 sticky top-0 z-20 shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-1.5 text-gray-600 dark:text-gray-300">
+              <Menu size={20} />
             </button>
             <div className="hidden md:block">
-              <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">Selamat Datang,</h2>
-              <p className="text-lg font-bold text-imigrasi-primary dark:text-white">{user?.name || 'User'}</p>
+              <h2 className="text-xs font-medium text-gray-500 dark:text-gray-400">Selamat Datang,</h2>
+              <p className="text-sm font-bold text-imigrasi-primary dark:text-white">{user?.name || 'User'}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
-            <button onClick={toggleDarkMode} className="p-2.5 rounded-full bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors">
-              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+          <div className="flex items-center gap-2 md:gap-3">
+            <button onClick={toggleDarkMode} className="p-2 rounded-full bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors">
+              {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-
+            
             <div className="relative">
-              <button onClick={() => setIsNotificationOpen(!isNotificationOpen)} className="p-2.5 rounded-full bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors relative">
-                <Bell size={20} />
+              <button onClick={() => setIsNotificationOpen(!isNotificationOpen)} className="p-2 rounded-full bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors relative">
+                <Bell size={16} />
                 {unreadCount > 0 && (
-                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-neutral-800"></span>
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-neutral-800"></span>
                 )}
               </button>
 
               <AnimatePresence>
                 {isNotificationOpen && (
                   <>
-                    <motion.div
+                    <motion.div 
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       className="fixed inset-0 z-40"
                       onClick={() => setIsNotificationOpen(false)}
                     />
-                    <motion.div
+                    <motion.div 
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute right-0 mt-2 w-80 bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-neutral-700 z-50 overflow-hidden"
+                      className="absolute right-0 mt-2 w-80 bg-white dark:bg-neutral-800 rounded-xl shadow-2xl border border-gray-100 dark:border-neutral-700 z-50 overflow-hidden"
                     >
-                      <div className="p-4 border-b border-gray-100 dark:border-neutral-700 flex items-center justify-between">
-                        <h4 className="font-bold text-gray-900 dark:text-white">Notifikasi</h4>
-                        <button onClick={markAllAsRead} className="text-[10px] font-bold text-imigrasi-primary dark:text-imigrasi-accent uppercase tracking-widest">
+                      <div className="p-3 border-b border-gray-100 dark:border-neutral-700 flex items-center justify-between">
+                        <h4 className="font-bold text-sm text-gray-900 dark:text-white">Notifikasi</h4>
+                        <button onClick={markAllAsRead} className="text-[9px] font-bold text-imigrasi-primary dark:text-imigrasi-accent uppercase tracking-widest">
                           Tandai Semua Dibaca
                         </button>
                       </div>
-                      <div className="max-h-96 overflow-y-auto">
+                      <div className="max-h-80 overflow-y-auto">
                         {notifications.length === 0 ? (
-                          <div className="p-8 text-center">
-                            <p className="text-sm text-gray-500">Tidak ada notifikasi</p>
+                          <div className="p-6 text-center">
+                            <p className="text-xs text-gray-500">Tidak ada notifikasi</p>
                           </div>
                         ) : (
                           notifications.map((n) => (
-                            <div
-                              key={n.id}
+                            <div 
+                              key={n.id} 
                               onClick={() => {
                                 markAsRead(n.id);
                                 if (n.link) {
@@ -353,15 +458,15 @@ const Layout: React.FC = () => {
                                 }
                               }}
                               className={cn(
-                                "p-4 border-b border-gray-50 dark:border-neutral-700/50 hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors cursor-pointer",
+                                "p-3 border-b border-gray-50 dark:border-neutral-700/50 hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors cursor-pointer", 
                                 !n.read && "bg-blue-50/50 dark:bg-blue-900/10"
                               )}
                             >
                               <div className="flex justify-between items-start mb-1">
-                                <h5 className="text-sm font-bold text-gray-900 dark:text-white">{n.title}</h5>
-                                <span className="text-[10px] text-gray-400">{n.time}</span>
+                                <h5 className="text-xs font-bold text-gray-900 dark:text-white">{n.title}</h5>
+                                <span className="text-[9px] text-gray-400">{n.time}</span>
                               </div>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{n.message}</p>
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed">{n.message}</p>
                             </div>
                           ))
                         )}
@@ -372,46 +477,47 @@ const Layout: React.FC = () => {
               </AnimatePresence>
             </div>
 
-            <div className="flex items-center gap-3 pl-4 border-l border-gray-200 dark:border-neutral-700 relative">
-              <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-neutral-700/50 p-1 rounded-xl transition-colors">
-                <img src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`} alt={user?.name} className="w-10 h-10 rounded-full border-2 border-imigrasi-accent shadow-sm" />
+            <div className="flex items-center gap-2 pl-3 border-l border-gray-200 dark:border-neutral-700 relative">
+              <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-neutral-700/50 p-1 rounded-lg transition-colors">
+                <img src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`} alt={user?.name} className="w-8 h-8 rounded-full border-2 border-imigrasi-accent shadow-sm" />
                 <div className="hidden sm:block text-left">
-                  <p className="text-sm font-bold text-gray-900 dark:text-white leading-none">{user?.name || 'User'}</p>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 font-mono">
-                    {user?.nip || user?.nik || '-'}
-                  </p>
+                  <p className="text-xs font-bold text-gray-900 dark:text-white leading-none">{user?.name || 'User'}</p>
+                  <p className="text-[9px] text-gray-500 dark:text-gray-400 mt-1 font-mono">{user?.nip || '-'}</p>
                 </div>
               </button>
 
               <AnimatePresence>
                 {isProfileOpen && (
                   <>
-                    <motion.div
+                    <motion.div 
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       className="fixed inset-0 z-40"
                       onClick={() => setIsProfileOpen(false)}
                     />
-                    <motion.div
+                    <motion.div 
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-neutral-700 z-50 overflow-hidden"
+                      className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-neutral-800 rounded-xl shadow-2xl border border-gray-100 dark:border-neutral-700 z-50 overflow-hidden"
                     >
-                      <div className="p-4 border-b border-gray-100 dark:border-neutral-700 bg-gray-50/50 dark:bg-neutral-700/30">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Akun Saya</p>
+                      <div className="p-3 border-b border-gray-100 dark:border-neutral-700 bg-gray-50/50 dark:bg-neutral-700/30">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Akun Saya</p>
                       </div>
                       <div className="p-2 space-y-1">
                         <button onClick={() => {
                           navigate(isAdminRole() ? '/admin/settings' : '/member/profile');
                           setIsProfileOpen(false);
-                        }} className="w-full flex items-center gap-3 p-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors">
-                          <UserIcon size={18} /> Profil Saya
+                        }} className="w-full flex items-center gap-2 p-2 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors">
+                          <UserIcon size={14} /> Profil Saya
                         </button>
                         <div className="h-px bg-gray-100 dark:bg-neutral-700 my-1" />
-                        <button onClick={logout} className="w-full flex items-center gap-3 p-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors">
-                          <LogOut size={18} /> Logout
+                        <button onClick={() => {
+                          logout();
+                          setIsProfileOpen(false);
+                        }} className="w-full flex items-center gap-2 p-2 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors">
+                          <LogOut size={14} /> Logout
                         </button>
                       </div>
                     </motion.div>
@@ -422,7 +528,7 @@ const Layout: React.FC = () => {
           </div>
         </header>
 
-        <div className="p-4 md:p-8 flex-1 overflow-y-auto">
+        <div className="p-4 md:p-6 flex-1 overflow-y-auto">
           <Outlet />
         </div>
       </main>

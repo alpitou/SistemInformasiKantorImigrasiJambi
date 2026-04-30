@@ -15,6 +15,8 @@ use App\Http\Controllers\Api\MemberDashboardController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DatabaseBackupController;
 use App\Http\Controllers\Api\SettingController; // <-- TAMBAHKAN INI
+use App\Http\Controllers\Api\WithdrawalController;
+
 
 Route::get('/test', function () {
     return response()->json([
@@ -166,6 +168,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::delete('/backup/delete/{filename}', [DatabaseBackupController::class, 'deleteBackup']);
             Route::delete('/backup/clean', [DatabaseBackupController::class, 'cleanBackups']);
         });
+    });
+
+    // Withdrawal Routes
+    Route::middleware(['auth:sanctum'])->group(function () {
+        Route::get('/withdrawals', [WithdrawalController::class, 'index']);
+        Route::post('/withdrawals', [WithdrawalController::class, 'store']);
+        Route::get('/withdrawals/stats', [WithdrawalController::class, 'getStats']);
+        Route::post('/withdrawals/{id}/treasurer-approve', [WithdrawalController::class, 'treasurerApprove']);
+        Route::post('/withdrawals/{id}/chairman-approve', [WithdrawalController::class, 'chairmanApprove']);
+        Route::post('/withdrawals/{id}/disburse', [WithdrawalController::class, 'disburse']);
+        Route::post('/withdrawals/{id}/reject', [WithdrawalController::class, 'reject']);
     });
 
     // ==================== MEMBER DASHBOARD ROUTES ====================

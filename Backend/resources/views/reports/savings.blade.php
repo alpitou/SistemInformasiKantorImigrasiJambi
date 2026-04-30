@@ -2,203 +2,347 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Laporan Simpanan</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Surat Perjanjian Pinjaman - {{ $user->name }}</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Times New Roman', 'Helvetica', Arial, sans-serif;
             font-size: 12px;
             line-height: 1.5;
-            color: #333;
+            color: #1a1a1a;
+            background: white;
+            padding: 20px;
         }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        /* Header */
         .header {
             text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #1a56db;
-            padding-bottom: 20px;
+            margin-bottom: 25px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #1a3c6e;
         }
+        
         .header h1 {
-            margin: 0;
-            color: #1a56db;
-            font-size: 24px;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #1a3c6e;
+            text-transform: uppercase;
         }
+        
+        .header h2 {
+            font-size: 14px;
+            font-weight: normal;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        
         .header p {
-            margin: 5px 0;
+            font-size: 10px;
             color: #666;
         }
-        .info-section {
-            margin-bottom: 30px;
-            padding: 15px;
-            background-color: #f3f4f6;
-            border-radius: 8px;
-        }
-        .info-row {
-            margin-bottom: 8px;
-        }
-        .info-label {
-            font-weight: bold;
-            display: inline-block;
-            width: 120px;
-        }
-        .summary-section {
-            margin-bottom: 30px;
-        }
-        .summary-box {
-            display: inline-block;
-            width: 30%;
-            margin-right: 3%;
-            padding: 15px;
-            background-color: #e0f2fe;
-            border-radius: 8px;
+        
+        /* Title */
+        .title {
             text-align: center;
+            margin: 20px 0;
         }
-        .summary-box h4 {
-            margin: 0 0 10px 0;
+        
+        .title h3 {
             font-size: 14px;
-        }
-        .summary-box p {
-            margin: 0;
-            font-size: 18px;
             font-weight: bold;
-            color: #1a56db;
+            text-decoration: underline;
+            text-transform: uppercase;
         }
-        table {
+        
+        /* Content */
+        .content {
+            margin: 15px 0;
+        }
+        
+        .content p {
+            margin-bottom: 10px;
+            text-align: justify;
+        }
+        
+        /* Table */
+        .table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
+            margin: 15px 0;
         }
-        th, td {
-            border: 1px solid #ddd;
+        
+        .table th,
+        .table td {
+            border: 1px solid #000;
             padding: 10px;
-            text-align: left;
+            vertical-align: top;
         }
-        th {
-            background-color: #1a56db;
-            color: white;
+        
+        .table th {
+            background-color: #f0f0f0;
             font-weight: bold;
+            text-align: left;
+            width: 30%;
         }
-        tr:nth-child(even) {
-            background-color: #f9fafb;
-        }
+        
         .text-right {
             text-align: right;
         }
+        
         .text-center {
             text-align: center;
         }
-        .footer {
-            margin-top: 50px;
-            text-align: center;
-            font-size: 10px;
-            color: #666;
-            border-top: 1px solid #ddd;
-            padding-top: 20px;
-        }
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 10px;
+        
+        .text-bold {
             font-weight: bold;
         }
-        .badge-success {
-            background-color: #10b981;
-            color: white;
+        
+        /* Parties */
+        .party-section {
+            margin: 15px 0;
         }
-        .badge-warning {
-            background-color: #f59e0b;
-            color: white;
+        
+        .party {
+            margin-bottom: 15px;
+        }
+        
+        .party-line {
+            margin: 5px 0;
+        }
+        
+        /* Signature Section - HANYA PEMINJAM DI KANAN */
+        .signature-wrapper {
+            margin-top: 40px;
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .signature-box {
+            text-align: center;
+            width: 40%;
+        }
+        
+        .signature-line {
+            margin-top: 50px;
+            border-top: 1px solid #1a1a1a;
+            width: 100%;
+        }
+        
+        .signature-name {
+            margin-top: 8px;
+            font-weight: bold;
+            font-size: 11px;
+        }
+        
+        .signature-title {
+            margin-top: 5px;
+            font-size: 10px;
+            color: #555;
+        }
+        
+        /* ============================================ */
+        /* MATERAI DIGITAL Rp 10.000                    */
+        /* ============================================ */
+        .stamp-wrapper {
+            margin: 30px 0 20px 0;
+            display: flex;
+            justify-content: flex-start;
+        }
+        
+        .stamp-box {
+            width: 160px;
+            height: 160px;
+            border: 2px dashed #c0392b;
+            border-radius: 8px;
+            background-color: #fef9e6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .stamp-text {
+            font-size: 11px;
+            font-weight: bold;
+            color: #c0392b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .stamp-price {
+            font-size: 16px;
+            font-weight: bold;
+            color: #c0392b;
+            margin: 5px 0;
+        }
+        
+        .digital-sign-area {
+            margin-top: 10px;
+            border-top: 1px dashed #e67e22;
+            padding: 6px;
+            text-align: center;
+            width: 90%;
+        }
+        
+        .digital-sign-text {
+            font-size: 7px;
+            color: #e67e22;
+            background: #fff;
+            padding: 3px;
+            border-radius: 3px;
+        }
+        
+        /* Date */
+        .date {
+            text-align: right;
+            margin: 20px 0;
+        }
+        
+        /* Footer */
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 9px;
+            color: #888;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
+        
+        @media print {
+            body {
+                padding: 0;
+                margin: 0;
+            }
+            .stamp-box {
+                border: 2px dashed #c0392b !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Laporan Simpanan Anggota</h1>
-        <p>Koperasi Karyawan Imigrasi</p>
-        <p>Dicetak: {{ $generated_at->format('d/m/Y H:i:s') }}</p>
-    </div>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <h1>KOPERASI KARYAWAN IMIGRASI</h1>
+            <h2>KANTOR IMIGRASI KELAS I TPI JAMBI</h2>
+            <p>Jl. Jend. Sudirman No. 123, Kota Jambi - Jambi 36122</p>
+            <p>Email: koperasi@kanimjambi.go.id | Website: https://kanimjambi.imigrasi.go.id</p>
+        </div>
 
-    <div class="info-section">
-        <div class="info-row">
-            <span class="info-label">Nama Anggota:</span>
-            <span>{{ $user->name }}</span>
+        <!-- TITLE -->
+        <div class="title">
+            <h3>SURAT PERJANJIAN PINJAMAN</h3>
+            <p>Nomor: {{ $loan->id }}/KOP-IM/{{ date('m') }}/{{ date('Y') }}</p>
         </div>
-        <div class="info-row">
-            <span class="info-label">NIP:</span>
-            <span>{{ $user->nip ?? '-' }}</span>
-        </div>
-        <div class="info-row">
-            <span class="info-label">Unit Kerja:</span>
-            <span>{{ $user->unit ?? '-' }}</span>
-        </div>
-        <div class="info-row">
-            <span class="info-label">Email:</span>
-            <span>{{ $user->email }}</span>
-        </div>
-    </div>
 
-    <div class="summary-section">
-        <h3>Ringkasan Saldo Simpanan</h3>
-        @foreach($summary as $type => $amount)
-            @if($type !== 'total')
-                <div class="summary-box">
-                    <h4>{{ $type }}</h4>
-                    <p>{{ $formatCurrency($amount) }}</p>
+        <!-- OPENING -->
+        <div class="content">
+            <p>Pada hari ini, <strong>{{ \Carbon\Carbon::now()->locale('id')->isoFormat('dddd, D MMMM YYYY') }}</strong>, kami yang bertanda tangan di bawah ini:</p>
+        </div>
+
+        <!-- PIHAK PERTAMA (Peminjam) -->
+        <div class="party-section">
+            <div class="party">
+                <div class="party-line"><strong>Nama</strong> : {{ $user->name }}</div>
+                <div class="party-line"><strong>NIP / NIK</strong> : {{ $user->nip ?? '-' }}</div>
+                <div class="party-line"><strong>Unit Kerja</strong> : {{ $user->unit ?? '-' }}</div>
+                <div class="party-line"><strong>No. Telepon</strong> : {{ $user->phone ?? '-' }}</div>
+                <div class="party-line"><em>Selanjutnya disebut sebagai <strong>PIHAK PERTAMA / PEMINJAM</strong></em></div>
+            </div>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="content">
+            <p>Dengan ini mengajukan pinjaman kepada <strong>Koperasi Karyawan Imigrasi Kantor Imigrasi Kelas I TPI Jambi</strong>, dengan ketentuan sebagai berikut:</p>
+        </div>
+
+        <!-- LOAN DETAILS TABLE -->
+        <table class="table">
+            <tr>
+                <th>Jumlah Pinjaman</th>
+                <td class="text-right">Rp {{ number_format($loan->amount, 0, ',', '.') }}</td>
+            </tr>
+            <tr>
+                <th>Suku Bunga</th>
+                <td class="text-right">{{ $loan->interest_rate }}% flat</td>
+            </tr>
+            <tr>
+                <th>Jangka Waktu</th>
+                <td class="text-right">{{ $loan->tenor_months }} bulan</td>
+            </tr>
+            <tr>
+                <th>Angsuran per Bulan</th>
+                <td class="text-right">Rp {{ number_format($loan->monthly_installment, 0, ',', '.') }}</td>
+            </tr>
+            <tr>
+                <th>Total Pembayaran</th>
+                <td class="text-right">Rp {{ number_format($loan->monthly_installment * $loan->tenor_months, 0, ',', '.') }}</td>
+            </tr>
+        </table>
+
+        <!-- TERMS -->
+        <div class="content">
+            <p><strong>Ketentuan:</strong></p>
+            <ol style="margin-left: 25px; margin-top: 5px;">
+                <li>PIHAK PERTAMA setuju untuk membayar angsuran setiap bulan melalui pemotongan gaji atau transfer ke rekening koperasi.</li>
+                <li>Pembayaran angsuran dilakukan paling lambat tanggal 25 setiap bulan.</li>
+                <li>Apabila terjadi keterlambatan pembayaran, PIHAK PERTAMA dikenakan denda sesuai ketentuan yang berlaku.</li>
+                <li>Perjanjian ini berlaku sejak ditandatangani oleh kedua belah pihak.</li>
+            </ol>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- MATERAI DIGITAL Rp 10.000 - SEBELAH KIRI                     -->
+        <!-- ============================================================ -->
+        <div class="stamp-wrapper">
+            <div class="stamp-box">
+                <div class="stamp-text">MATERAI</div>
+                <div class="stamp-price">Rp 10.000</div>
+                <div class="stamp-text">TEMPEL</div>
+                <div class="digital-sign-area">
+                    <div class="digital-sign-text">
+                        ⚡ DIGITAL SIGNATURE ZONE ⚡<br>
+                        <span style="font-size: 6px;">(Tanda tangan digital / e-Materai)</span>
+                    </div>
                 </div>
-            @endif
-        @endforeach
-        <div class="summary-box" style="background-color: #1a56db; color: white;">
-            <h4 style="color: white;">TOTAL</h4>
-            <p style="color: white;">{{ $formatCurrency($summary['total']) }}</p>
+            </div>
         </div>
-    </div>
 
-    <h3>Riwayat Transaksi Simpanan</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Tanggal</th>
-                <th>Jenis Simpanan</th>
-                <th>Tipe Transaksi</th>
-                <th class="text-right">Jumlah</th>
-                <th>Status</th>
-                <th>Keterangan</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($transactions as $transaction)
-            <tr>
-                <td>{{ \Carbon\Carbon::parse($transaction->transaction_date)->format('d/m/Y') }}</td>
-                <td>{{ $transaction->type->name ?? '-' }}</td>
-                <td>
-                    {{ $transaction->transaction_type === 'deposit' ? 'Setoran' : 'Penarikan' }}
-                </td>
-                <td class="text-right">
-                    {{ $formatCurrency($transaction->amount) }}
-                </td>
-                <td class="text-center">
-                    @if($transaction->transaction_type === 'deposit')
-                        @if($transaction->verification_status === 'verified')
-                            <span class="badge badge-success">Terverifikasi</span>
-                        @else
-                            <span class="badge badge-warning">Menunggu</span>
-                        @endif
-                    @else
-                        <span class="badge badge-success">Selesai</span>
-                    @endif
-                </td>
-                <td>{{ $transaction->description ?? '-' }}</td>
-            </tr>
-            @empty
-            <tr>
-                <td colspan="6" class="text-center">Belum ada transaksi simpanan</td>
-            </tr>
-            @endforelse
-        </tbody>
-    </table>
+        <!-- DATE -->
+        <div class="date">
+            <p>Jambi, {{ \Carbon\Carbon::now()->locale('id')->isoFormat('D MMMM YYYY') }}</p>
+        </div>
 
-    <div class="footer">
-        <p>Laporan ini dihasilkan secara otomatis oleh sistem Koperasi Imigrasi.</p>
-        <p>© {{ date('Y') }} Koperasi Karyawan Imigrasi. All rights reserved.</p>
+        <!-- ============================================================ -->
+        <!-- TANDA TANGAN PEMINJAM (SEBELAH KANAN) - TANPA KETUA          -->
+        <!-- ============================================================ -->
+        <div class="signature-wrapper">
+            <div class="signature-box">
+                <div class="signature-line"></div>
+                <div class="signature-name">{{ $user->name }}</div>
+                <div class="signature-title">Peminjam / PIHAK PERTAMA</div>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer">
+            <p>Surat Perjanjian ini dibuat dalam rangkap 2 (dua) dan mempunyai kekuatan hukum yang sama.</p>
+            <p>Dicetak: {{ \Carbon\Carbon::now()->format('d/m/Y H:i:s') }}</p>
+        </div>
     </div>
 </body>
 </html>

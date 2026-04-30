@@ -27,6 +27,7 @@ const Reports = lazy(() => import('./pages/admin/Reports'));
 const AuditLog = lazy(() => import('./pages/admin/AuditLog'));
 const AdminSettings = lazy(() => import('./pages/admin/Settings'));
 const DatabaseBackup = lazy(() => import('./pages/admin/DatabaseBackup'));
+const WithdrawalApprovals = lazy(() => import('./pages/admin/WithdrawalApprovals'));
 
 const MEMBER_ROLES = ['anggota'];
 const ADMIN_ROLES = ['admin', 'ketua', 'bendahara', 'sekretaris', 'pengawas'];
@@ -82,6 +83,7 @@ const AppContent: React.FC = () => {
           <Route path="/member/shu" element={<ProtectedRoute allowedRoles={['member']}><MemberSHU /></ProtectedRoute>} />
           <Route path="/member/documents" element={<ProtectedRoute allowedRoles={['member']}><MemberDocuments /></ProtectedRoute>} />
           <Route path="/member/profile" element={<ProtectedRoute allowedRoles={['member']}><MemberProfile /></ProtectedRoute>} />
+          <Route path="/admin/withdrawals" element={<WithdrawalApprovals />} />
           
           <Route path="/admin" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/members" element={<ProtectedRoute allowedRoles={['admin', 'ketua', 'sekretaris']}><MemberManagement /></ProtectedRoute>} />
@@ -95,6 +97,7 @@ const AppContent: React.FC = () => {
           <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><Reports /></ProtectedRoute>} />
           <Route path="/admin/audit" element={<ProtectedRoute allowedRoles={['admin', 'pengawas']}><AuditLog /></ProtectedRoute>} />
           <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminSettings /></ProtectedRoute>} />
+          <Route path="/admin/backup" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><DatabaseBackup /></ProtectedRoute>} />
           <Route path="/admin/backup" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><DatabaseBackup /></ProtectedRoute>} />
         </Route>
         

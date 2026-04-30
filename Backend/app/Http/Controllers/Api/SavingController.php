@@ -21,18 +21,18 @@ class SavingController extends Controller
     private function getBalance($userId, $savingTypeId = null)
     {
         $query = Saving::where('user_id', $userId);
-        
+
         $query->where(function($q) {
             $q->where('verification_status', 'verified')
               ->orWhere('transaction_type', 'withdrawal');
         });
-        
+
         if ($savingTypeId) {
             $query->where('saving_type_id', $savingTypeId);
         }
-        
+
         $savings = $query->get();
-        
+
         $balance = 0;
         foreach ($savings as $saving) {
             if ($saving->transaction_type === 'deposit') {
@@ -41,15 +41,8 @@ class SavingController extends Controller
                 $balance -= $saving->amount;
             }
         }
-        
-        return $balance;
-    }
 
-    private function isPayrollPeriodActive()
-    {
-        $today = now();
-        $day = (int) $today->format('d');
-        return $day >= 25 || $day <= 5;
+        return max(0, $balance);
     }
 
     private function getActivePayrollPeriod()

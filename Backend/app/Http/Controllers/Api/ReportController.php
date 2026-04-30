@@ -20,7 +20,8 @@ class ReportController extends Controller
             $currentUser = $request->user();
             
             // Check authorization
-            if (!$currentUser->hasRole('admin') && !$currentUser->hasRole('bendahara') && $currentUser->id != $userId) {
+            $roleName = $currentUser->role->name ?? 'anggota';
+            if (!in_array($roleName, ['admin', 'bendahara', 'ketua']) && $currentUser->id != $userId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Akses ditolak',
@@ -34,28 +35,24 @@ class ReportController extends Controller
             // Get saving types
             $pokokType = SavingType::where('name', 'Pokok')->first();
             $wajibType = SavingType::where('name', 'Wajib')->first();
+            $sukarelaType = SavingType::where('name', 'Sukarela')->first();
             
-            // Calculate savings
-            $pokokBalance = 0;
-            $wajibBalance = 0;
+            // Calculate savings balance (deposits - withdrawals)
+            $pokokBalance = $this->calculateSavingBalance($member->id, $pokokType);
+            $wajibBalance = $this->calculateSavingBalance($member->id, $wajibType);
+            $sukarelaBalance = $this->calculateSavingBalance($member->id, $sukarelaType);
             
-            if ($pokokType) {
-                $pokokBalance = Saving::where('user_id', $member->id)
-                    ->where('saving_type_id', $pokokType->id)
-                    ->where('transaction_type', 'deposit')
-                    ->where('verification_status', 'verified')
-                    ->sum('amount');
-            }
+            $totalSavings = $pokokBalance + $wajibBalance + $sukarelaBalance;
             
-            if ($wajibType) {
-                $wajibBalance = Saving::where('user_id', $member->id)
-                    ->where('saving_type_id', $wajibType->id)
-                    ->where('transaction_type', 'deposit')
-                    ->where('verification_status', 'verified')
-                    ->sum('amount');
-            }
-            
-            $totalSavings = $pokokBalance + $wajibBalance;
+            // Get all transactions for history (include withdrawals)
+            $allSavings = Saving::with('type')
+                ->where('user_id', $member->id)
+                ->where(function($q) {
+                    $q->where('verification_status', 'verified')
+                      ->orWhere('transaction_type', 'withdrawal');
+                })
+                ->orderBy('transaction_date', 'desc')
+                ->get();
             
             // Get active loans
             $activeLoan = Loan::where('user_id', $member->id)
@@ -79,29 +76,34 @@ class ReportController extends Controller
                 ->where('description', 'like', 'Pembagian SHU%')
                 ->sum('amount');
             
+            // Calculate total deposits and withdrawals
+            $totalDeposits = $allSavings->where('transaction_type', 'deposit')->sum('amount');
+            $totalWithdrawals = $allSavings->where('transaction_type', 'withdrawal')->sum('amount');
+            
             $data = [
                 'member' => $member,
                 'month' => $month,
                 'pokok_balance' => $pokokBalance,
                 'wajib_balance' => $wajibBalance,
+                'sukarela_balance' => $sukarelaBalance,
                 'total_savings' => $totalSavings,
+                'total_deposits' => $totalDeposits,
+                'total_withdrawals' => $totalWithdrawals,
                 'shu_total' => $shuTotal,
                 'has_loan' => !is_null($activeLoan),
                 'loan_amount' => $loanAmount,
                 'monthly_installment' => $monthlyInstallment,
                 'remaining_balance' => $remainingBalance,
                 'tenor' => $tenor,
+                'transactions' => $allSavings,
+                'formatCurrency' => function($amount) {
+                    return 'Rp ' . number_format($amount, 0, ',', '.');
+                },
                 'generated_at' => now()
             ];
             
-            // Load view dan generate PDF
             $pdf = Pdf::loadView('reports.rekening-koran', $data);
             $pdf->setPaper('A4', 'portrait');
-            $pdf->setOptions([
-                'defaultFont' => 'sans-serif',
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true
-            ]);
             
             $filename = 'rekening_koran_' . preg_replace('/[^a-zA-Z0-9]/', '_', $member->name) . '_' . date('Y-m-d') . '.pdf';
             
@@ -115,5 +117,29 @@ class ReportController extends Controller
                 'data' => null
             ], 500);
         }
+    }
+    
+    private function calculateSavingBalance($userId, $savingType)
+    {
+        if (!$savingType) return 0;
+        
+        $savings = Saving::where('user_id', $userId)
+            ->where('saving_type_id', $savingType->id)
+            ->where(function($q) {
+                $q->where('verification_status', 'verified')
+                  ->orWhere('transaction_type', 'withdrawal');
+            })
+            ->get();
+        
+        $balance = 0;
+        foreach ($savings as $saving) {
+            if ($saving->transaction_type === 'deposit') {
+                $balance += $saving->amount;
+            } else {
+                $balance -= $saving->amount;
+            }
+        }
+        
+        return max(0, $balance);
     }
 }

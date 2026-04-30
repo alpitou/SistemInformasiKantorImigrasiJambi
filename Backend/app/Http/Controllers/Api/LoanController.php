@@ -357,25 +357,35 @@ class LoanController extends Controller
             $loan = Loan::with('user')->findOrFail($id);
             $user = request()->user();
             $role = $user->role->name ?? 'anggota';
-
+    
             if ($loan->user_id !== $user->id && !in_array($role, ['admin', 'ketua', 'bendahara'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized'
                 ], 403);
             }
-
+    
+            // Pastikan loan sudah ada di database sebelum generate PDF
+            if (!$loan || !$loan->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Loan data not found'
+                ], 404);
+            }
+    
             $data = [
                 'loan' => $loan,
                 'user' => $loan->user,
                 'monthlyInstallment' => $loan->monthly_installment,
                 'totalPayment' => $loan->amount + ($loan->amount * $loan->interest_rate / 100),
                 'date' => now()->format('d F Y'),
+                'generated_at' => now(),
             ];
-
+    
             $pdf = Pdf::loadView('pdf.loan-agreement', $data);
+            $pdf->setPaper('A4', 'portrait');
+            
             return $pdf->download('surat_perjanjian_pinjaman_' . $loan->id . '.pdf');
-
         } catch (\Exception $e) {
             Log::error('Error generating agreement: ' . $e->getMessage());
             return response()->json([
