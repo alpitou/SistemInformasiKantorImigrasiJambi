@@ -107,6 +107,17 @@ const Layout: React.FC = () => {
 
   const navItems = isAdminRole() ? getAllAdminMenus() : memberNavItems;
 
+  const isPathActive = (itemPath: string, end?: boolean) => {
+    if (end) {
+      return location.pathname === itemPath;
+    }
+
+    if (itemPath === '/admin') {
+      return location.pathname === '/admin';
+    }
+    return location.pathname.startsWith(itemPath);
+  };
+
   useEffect(() => {
     if (isAdminRole() && (userRole === 'bendahara' || userRole === 'ketua' || userRole === 'admin')) {
       const timer = setTimeout(() => {
@@ -286,6 +297,8 @@ const Layout: React.FC = () => {
 
         <nav className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
           <div className="space-y-1">
+        <nav className="flex-1 px-4 py-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
+          <div className="space-y-2">
             {navItems.map((item) => (
               <NavLink
                 key={item.path}

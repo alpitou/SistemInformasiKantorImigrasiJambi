@@ -1,5 +1,5 @@
 // src/pages/member/Loans.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, JSX } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   HandCoins, TrendingUp, PieChart, ArrowUpRight, ArrowDownRight, 
@@ -785,7 +785,7 @@ const Loans: React.FC = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl p-4 text-white">
+        <div className="bg-gradient-to-br from-imigrasi-primary to-blue-800 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs opacity-80">Pinjaman Aktif</p>
@@ -797,7 +797,7 @@ const Loans: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl p-4 text-white">
+        <div className="bg-gradient-to-br from-imigrasi-primary to-blue-700 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs opacity-80">Pengajuan Menunggu</p>
@@ -809,7 +809,7 @@ const Loans: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 text-white">
+        <div className="bg-gradient-to-br from-imigrasi-primary to-blue-600 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs opacity-80">Pinjaman Lunas</p>
@@ -840,7 +840,7 @@ const Loans: React.FC = () => {
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
+              <div> 
                 <p className="text-white/60 text-xs font-bold uppercase tracking-widest mb-1">Sisa Pinjaman</p>
                 <h2 className="text-2xl md:text-3xl font-black">{formatCurrency(activeLoan.remaining_balance)}</h2>
               </div>

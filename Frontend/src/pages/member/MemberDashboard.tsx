@@ -579,25 +579,6 @@ const MemberDashboard: React.FC = () => {
 
         {/* Quick Actions & Profile Card */}
         <div className="space-y-8">
-          <motion.div variants={itemVariants} className="glass-card rounded-3xl p-6 bg-gradient-to-br from-imigrasi-primary to-blue-900 text-white border-none shadow-imigrasi-primary/20">
-            <div className="flex items-center gap-4 mb-6">
-              <img src={profile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile?.name || 'User'}`} alt="" className="w-16 h-16 rounded-2xl border-2 border-white/20" />
-              <div>
-                <h4 className="font-bold text-lg">{profile?.name || user?.name || 'Anggota'}</h4>
-                <p className="text-xs text-white/60 font-mono">{profile?.nip || '-'}</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-white/60">Unit Kerja</span>
-                <span className="font-medium text-right">{profile?.unit || '-'}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/60">ID Anggota</span>
-                <span className="font-mono font-bold text-imigrasi-accent">#{profile?.id || user?.id || '-'}</span>
-              </div>
-            </div>
-          </motion.div>
 
           <motion.div variants={itemVariants} className="glass-card rounded-3xl p-6">
             <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-4">Layanan Online</h3>

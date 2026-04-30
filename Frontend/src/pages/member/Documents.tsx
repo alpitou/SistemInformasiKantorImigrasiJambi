@@ -293,7 +293,6 @@ const MemberDocuments: React.FC = () => {
               <div className="p-12 text-center">
                 <FileText className="mx-auto text-gray-400 mb-4" size={48} />
                 <p className="text-gray-500">Tidak ada dokumen yang tersedia untuk anggota.</p>
-                <p className="text-gray-400 text-sm mt-2">Dokumen dengan akses "Publik" atau "Anggota" akan muncul di sini.</p>
               </div>
             )}
           </div>
