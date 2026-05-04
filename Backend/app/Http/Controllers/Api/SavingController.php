@@ -1579,9 +1579,9 @@ class SavingController extends Controller
 
     // ==================== PAYROLL DEDUCTION METHODS ====================
 
-    /**
-     * Get members with their savings and loan data for payroll deduction
-     */
+        /**
+         * Get members with their savings and loan data for payroll deduction
+         */
     public function getPayrollMembers(Request $request)
     {
         try {
@@ -1600,8 +1600,7 @@ class SavingController extends Controller
             $existingDeductions = Saving::where('transaction_type', 'deposit')
                 ->whereYear('transaction_date', $year)
                 ->whereMonth('transaction_date', $monthNum)
-                ->whereNotNull('created_by')
-                ->where('description', 'like', '%gaji%')
+                ->where('description', 'like', '%Potongan Gaji%')
                 ->get()
                 ->groupBy('user_id');
                         
@@ -1615,59 +1614,72 @@ class SavingController extends Controller
             $result = [];
                         
             foreach ($members as $member) {
-                // Check if member already processed this month
+                // Check if member already processed savings this month
                 $alreadyProcessed = $existingDeductions->has($member->id);
                         
                 // Get member's savings data
                 $memberSavings = [];
                 foreach ($savingTypes as $type) {
                     $balance = $this->getBalance($member->id, $type->id);
-                    $defaultAmount = $this->getDefaultSavingsAmount($member, $type);
-                    $isProcessed = false;
                         
+                    // Check if this specific saving type already processed this month
+                    $isProcessed = false;
                     if ($alreadyProcessed && $existingDeductions->has($member->id)) {
                         $isProcessed = $existingDeductions[$member->id]->contains(function($s) use ($type) {
                             return $s->saving_type_id == $type->id;
                         });
                     }
                         
+                    // Calculate default amount based on member status and saving type
+                    $defaultAmount = $this->calculateDefaultAmount($member, $type);
+                    $isApplicable = $defaultAmount > 0;
+                        
+                    // For Pokok: only applicable if not fully paid
+                    if ($type->name === 'Pokok') {
+                        $pokokType = SavingType::where('name', 'Pokok')->first();
+                        $pokokPaidAmount = $pokokType ? $this->getBalance($member->id, $pokokType->id) : 0;
+                        $isApplicable = $pokokPaidAmount < ($type->default_amount ?? 100000);
+                    }
+                        
+                    // For Wajib: always applicable for active members
+                    if ($type->name === 'Wajib') {
+                        $isApplicable = true;
+                    }
+                        
+                    // For Sukarela: only applicable if member wants (default 0)
+                    if ($type->name === 'Sukarela') {
+                        $isApplicable = false; // Optional, not auto-deducted
+                    }
+                        
                     $memberSavings[] = [
                         'type_id' => $type->id,
                         'type_name' => $type->name,
-                        'default_amount' => $defaultAmount,
+                        'default_amount' => $isApplicable ? $defaultAmount : 0,
                         'current_balance' => $balance,
-                        'is_processed' => $isProcessed
+                        'is_processed' => $isProcessed,
+                        'is_applicable' => $isApplicable,
+                        'remaining_to_pay' => $type->name === 'Pokok' ? max(0, ($type->default_amount ?? 100000) - $balance) : 0
                     ];
                 }
                         
                 // Check for active loan
                 $activeLoan = Loan::where('user_id', $member->id)
                     ->where('status', 'active')
+                    ->where('remaining_balance', '>', 0)
                     ->first();
                         
                 $hasActiveLoan = !is_null($activeLoan);
-                $loanInstallment = 0;
-                $loanRemaining = 0;
-                $loanAlreadyProcessed = false;
-                        
-                if ($hasActiveLoan) {
-                    $loanInstallment = $activeLoan->installment_amount;
-                    $loanRemaining = $activeLoan->remaining_balance;
-                    $loanAlreadyProcessed = $existingLoanDeductions->has($member->id);
-                }
-                        
-                // Check if member is old member (Pokok saving is considered "paid" if balance >= 100000)
-                $pokokSaving = SavingType::where('name', 'Pokok')->first();
-                $pokokBalance = $pokokSaving ? $this->getBalance($member->id, $pokokSaving->id) : 0;
-                $isOldMember = $pokokBalance >= 100000;
+                $loanInstallment = $hasActiveLoan ? $activeLoan->monthly_installment : 0;
+                $loanRemaining = $hasActiveLoan ? $activeLoan->remaining_balance : 0;
+                $loanAlreadyProcessed = $hasActiveLoan && $existingLoanDeductions->has($member->id);
                         
                 $result[] = [
                     'id' => $member->id,
                     'name' => $member->name,
                     'nip' => $member->nip ?? '-',
                     'unit' => $member->unit ?? '-',
-                    'is_old_member' => $isOldMember,
-                    'already_processed' => $alreadyProcessed,
+                    'join_date' => $member->join_date,
+                    'already_processed_savings' => $alreadyProcessed,
                     'has_active_loan' => $hasActiveLoan,
                     'loan_installment' => $loanInstallment,
                     'loan_remaining' => $loanRemaining,
@@ -1689,6 +1701,34 @@ class SavingController extends Controller
                 'message' => 'Gagal mengambil data anggota: ' . $e->getMessage(),
                 'data' => []
             ], 500);
+        }
+    }
+
+    private function calculateDefaultAmount($member, $savingType)
+    {
+        $typeName = $savingType->name;
+        $defaultAmount = $savingType->default_amount ?? 0;
+                        
+        // Get saving type configuration
+        $pokokType = SavingType::where('name', 'Pokok')->first();
+        $pokokRequired = $pokokType ? $pokokType->default_amount : 100000;
+                        
+        switch ($typeName) {
+            case 'Pokok':
+                $currentPokok = $pokokType ? $this->getBalance($member->id, $pokokType->id) : 0;
+                $remaining = $pokokRequired - $currentPokok;
+                return max(0, min($remaining, $defaultAmount));
+
+            case 'Wajib':
+                // Wajib is always deducted monthly
+                return $defaultAmount;
+
+            case 'Sukarela':
+                // Sukarela is optional, not auto-deducted
+                return 0;
+
+            default:
+                return $defaultAmount;
         }
     }
 
@@ -1719,6 +1759,9 @@ class SavingController extends Controller
 
     /**
      * Process payroll deductions
+         */
+        /**
+     * Process payroll deductions
      */
     public function processPayroll(Request $request)
     {
@@ -1731,10 +1774,10 @@ class SavingController extends Controller
                 'deductions.*.amount' => 'required|numeric|min:0',
                 'process_loan_installments' => 'boolean'
             ]);
-                        
+                
             $user = $request->user();
-                        
-            // Check permission - hanya bendahara atau admin
+                
+            // Check permission - only treasurer or admin
             if (!in_array($user->role_id, [1, 3])) {
                 return response()->json([
                     'success' => false,
@@ -1742,19 +1785,27 @@ class SavingController extends Controller
                     'data' => null
                 ], 403);
             }
-                        
+                
             DB::beginTransaction();
-                        
+                
             $month = $request->month;
-            $transactionDate = $month . '-25'; // Use 25th of the month
+            $transactionDate = $month . '-25';
             $processLoan = $request->process_loan_installments ?? true;
-                        
+                
             $processedSavings = 0;
             $processedLoans = 0;
             $totalAmount = 0;
-                        
+            $errors = [];
+                
+            // Get month name for description
+            $monthName = date('F Y', strtotime($month . '-01'));
+                
             // Process savings deductions
             foreach ($request->deductions as $deduction) {
+                if ($deduction['amount'] <= 0) {
+                    continue;
+                }
+                
                 // Check if already processed for this month
                 $exists = Saving::where('user_id', $deduction['user_id'])
                     ->where('saving_type_id', $deduction['saving_type_id'])
@@ -1762,14 +1813,16 @@ class SavingController extends Controller
                     ->whereMonth('transaction_date', substr($month, 5, 2))
                     ->where('description', 'like', '%Potongan Gaji%')
                     ->exists();
-                        
-                if (!$exists && $deduction['amount'] > 0) {
+                
+                if (!$exists) {
+                    $savingType = SavingType::find($deduction['saving_type_id']);
+                    
                     Saving::create([
                         'user_id' => $deduction['user_id'],
                         'saving_type_id' => $deduction['saving_type_id'],
                         'amount' => $deduction['amount'],
                         'transaction_type' => 'deposit',
-                        'description' => "Potongan Gaji Bulan " . date('F Y', strtotime($month . '-01')),
+                        'description' => "Potongan Gaji Bulan {$monthName} - {$savingType->name}",
                         'transaction_date' => $transactionDate,
                         'created_by' => $user->id,
                         'verification_status' => 'verified',
@@ -1780,64 +1833,85 @@ class SavingController extends Controller
                     $totalAmount += $deduction['amount'];
                 }
             }
-                        
+                
             // Process loan installments if enabled
             if ($processLoan) {
-                $membersWithLoan = User::where('role_id', 5)
+                // Get members with active loans
+                $membersWithActiveLoan = User::where('role_id', 5)
+                    ->where('status', 'active')
                     ->whereHas('loans', function($q) {
-                        $q->where('status', 'active');
+                        $q->where('status', 'active')
+                          ->where('remaining_balance', '>', 0);
                     })
                     ->get();
-                        
-                foreach ($membersWithLoan as $member) {
+                
+                foreach ($membersWithActiveLoan as $member) {
                     $activeLoan = Loan::where('user_id', $member->id)
                         ->where('status', 'active')
+                        ->where('remaining_balance', '>', 0)
                         ->first();
-                        
+                    
                     if ($activeLoan) {
                         // Check if already processed this month
                         $exists = LoanInstallment::where('loan_id', $activeLoan->id)
                             ->whereYear('payment_date', substr($month, 0, 4))
                             ->whereMonth('payment_date', substr($month, 5, 2))
+                            ->where('payment_method', 'potong_gaji')
                             ->exists();
                         
                         if (!$exists) {
+                            $installmentAmount = $activeLoan->monthly_installment;
                             $installmentNumber = $this->getNextInstallmentNumber($activeLoan->id);
-                            $newRemainingBalance = $activeLoan->remaining_balance - $activeLoan->installment_amount;
-
+                            $newRemainingBalance = $activeLoan->remaining_balance - $installmentAmount;
+                            
+                            // Create loan installment record
                             LoanInstallment::create([
                                 'loan_id' => $activeLoan->id,
                                 'installment_number' => $installmentNumber,
-                                'amount_paid' => $activeLoan->installment_amount,
+                                'amount_paid' => $installmentAmount,
                                 'payment_method' => 'potong_gaji',
                                 'payment_date' => $transactionDate,
-                                'notes' => "Potongan Gaji Bulan " . date('F Y', strtotime($month . '-01')),
-                                'verified_by' => $user->id
+                                'received_by' => $user->id,
+                                'notes' => "Potongan Gaji Bulan {$monthName}"
                             ]);
-
-                            $activeLoan->update([
-                                'remaining_balance' => max(0, $newRemainingBalance),
-                                'status' => $newRemainingBalance <= 0 ? 'completed' : 'active'
-                            ]);
-
+                            
+                            // Update loan balance
+                            if ($newRemainingBalance <= 0) {
+                                $activeLoan->status = 'completed';
+                                $activeLoan->remaining_balance = 0;
+                            } else {
+                                $activeLoan->remaining_balance = $newRemainingBalance;
+                            }
+                            $activeLoan->save();
+                            
                             $processedLoans++;
+                            $totalAmount += $installmentAmount;
                         }
                     }
                 }
             }
-                        
+                
             DB::commit();
-                        
+                
+            $message = "Berhasil memproses payroll untuk periode {$monthName}: ";
+            $message .= "{$processedSavings} potongan simpanan";
+            if ($processedLoans > 0) {
+                $message .= ", {$processedLoans} angsuran pinjaman";
+            }
+            $message .= ". Total: " . number_format($totalAmount, 0, ',', '.');
+                
             return response()->json([
                 'success' => true,
-                'message' => "Berhasil memproses {$processedSavings} potongan simpanan dan {$processedLoans} angsuran pinjaman. Total: Rp " . number_format($totalAmount, 0, ',', '.'),
+                'message' => $message,
                 'data' => [
                     'processed_savings' => $processedSavings,
                     'processed_loans' => $processedLoans,
-                    'total_amount' => $totalAmount
+                    'total_amount' => $totalAmount,
+                    'month' => $month,
+                    'month_name' => $monthName
                 ]
             ]);
-                        
+                
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Process payroll error: ' . $e->getMessage());

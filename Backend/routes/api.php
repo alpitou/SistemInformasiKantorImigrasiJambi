@@ -103,13 +103,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/savings/{id}/verify', [SavingController::class, 'verifyDeposit']);
     });
     
-    // PAYROLL ROUTES
+    // PAYROLL ROUTES - Perbaiki nama method yang dipanggil
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/savings/payroll/check-period', [SavingController::class, 'checkPayrollPeriod']);
-        Route::get('/savings/payroll/members', [SavingController::class, 'getMembersForPayroll']);
+        Route::get('/savings/payroll/members', [SavingController::class, 'getPayrollMembers']); // Ganti dari getMembersForPayroll
         Route::get('/savings/payroll/history', [SavingController::class, 'getPayrollHistory']);
-        Route::post('/savings/payroll/process', [SavingController::class, 'processPayrollDeductions']);
-        Route::get('/savings/payroll/export', [SavingController::class, 'exportPayrollHistory']);
+        Route::post('/savings/payroll/process', [SavingController::class, 'processPayroll']); // Ganti dari processPayrollDeductions
+        Route::get('/savings/payroll/export', [SavingController::class, 'exportPayroll']); // Ganti dari exportPayrollHistory
     });
     
     // SHU ROUTES
