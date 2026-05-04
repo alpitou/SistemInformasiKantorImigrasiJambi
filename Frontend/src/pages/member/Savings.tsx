@@ -526,7 +526,6 @@ const Savings: React.FC = () => {
     { label: 'Simpanan Sukarela', value: summary?.Sukarela ?? 0, icon: PieChart, color: 'bg-amber-500', desc: 'Simpanan tambahan yang bisa ditarik sewaktu-waktu.', canWithdraw: true },
   ];
 
-  // Get pending withdrawal status for display
   const pendingWithdrawals = withdrawalRequests.filter(w => w.status === 'pending_treasurer' || w.status === 'pending_chairman');
   const pendingWithdrawalTotal = pendingWithdrawals.reduce((sum, w) => sum + w.amount, 0);
 
@@ -669,7 +668,7 @@ const Savings: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Withdrawal Modal - Updated for all saving types */}
+      {/* Withdrawal Modals */}
       <AnimatePresence>
         {showWithdrawModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1136,20 +1135,6 @@ const Savings: React.FC = () => {
             <p className="text-xs text-gray-500">Semakin besar simpanan Anda, semakin besar potensi SHU yang akan Anda terima.</p>
           </div>
 
-          <div className="glass-card p-4 rounded-xl bg-purple-50 dark:bg-purple-900/20">
-            <h4 className="font-bold text-purple-900 dark:text-purple-400 text-sm mb-2">Rekening Koran</h4>
-            <p className="text-xs text-purple-800 dark:text-purple-500/80">
-              Unduh Rekening Koran untuk melihat ringkasan lengkap seluruh aktivitas simpanan, pinjaman, dan SHU Anda.
-            </p>
-            <button 
-              onClick={handleDownloadRekeningKoran}
-              disabled={isDownloadingRekening}
-              className="mt-3 w-full py-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
-            >
-              {isDownloadingRekening ? <Loader2 size={12} className="animate-spin" /> : <FileSpreadsheet size={12} />}
-              Unduh Sekarang
-            </button>
-          </div>
         </div>
       </div>
     </motion.div>

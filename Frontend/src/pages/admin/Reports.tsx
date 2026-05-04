@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { 
-  FileText, Download, PieChart, TrendingUp, Calendar, Filter, 
-  FileSpreadsheet, FileCheck, RefreshCw, Share2, MessageCircle, 
+import {
+  FileText, Download, PieChart, TrendingUp, Calendar, Filter,
+  FileSpreadsheet, FileCheck, RefreshCw, Share2, MessageCircle,
   Info, Wallet, HandCoins, ShoppingBag, ArrowUpRight, ArrowDownRight,
   Printer, Mail, Loader2, AlertCircle, CheckCircle2, XCircle, Users,
   Banknote, Landmark
@@ -180,32 +180,32 @@ const ReportsPage: React.FC = () => {
     setIsLoading(true);
     try {
       const allTransactions: Transaction[] = [];
-      
+
       // ========== 1. FETCH SAVINGS DATA (Deposits and Withdrawals) ==========
       try {
         const savingsResponse = await api.get('/savings');
         if (savingsResponse.data.success && savingsResponse.data.data) {
           const savings = savingsResponse.data.data;
-          
+
           savings.forEach((saving: SavingData) => {
             // ONLY include verified transactions - SKIP PENDING
             if (saving.verification_status !== 'verified') return;
-            
+
             const transactionDate = saving.transaction_date;
             const transactionMonth = transactionDate ? transactionDate.slice(0, 7) : '';
-            
+
             // Filter by selected month
             if (selectedMonth && transactionMonth !== selectedMonth) return;
-            
+
             const isDeposit = saving.transaction_type === 'deposit';
             const savingTypeName = saving.type?.name || 'Simpanan';
-            const isPayroll = saving.description?.toLowerCase().includes('gaji') || 
-                              saving.description?.toLowerCase().includes('payroll');
-            
+            const isPayroll = saving.description?.toLowerCase().includes('gaji') ||
+              saving.description?.toLowerCase().includes('payroll');
+
             let title = '';
             let type = '';
             let isIncome = true;
-            
+
             if (isDeposit) {
               if (isPayroll) {
                 title = `Potongan Payroll (${savingTypeName})`;
@@ -220,7 +220,7 @@ const ReportsPage: React.FC = () => {
               type = 'withdrawal';
               isIncome = false;
             }
-            
+
             allTransactions.push({
               id: `saving_${saving.id}`,
               original_id: saving.id,
@@ -241,7 +241,7 @@ const ReportsPage: React.FC = () => {
       } catch (error) {
         console.warn('Failed to fetch savings:', error);
       }
-      
+
       // ========== 2. FETCH FINANCIAL SUMMARY ==========
       try {
         const summaryResponse = await api.get('/savings/financial/summary');
@@ -251,13 +251,13 @@ const ReportsPage: React.FC = () => {
       } catch (error) {
         console.warn('Failed to fetch financial summary:', error);
       }
-      
+
       // ========== 3. FETCH KANTIN INCOMES ==========
       try {
         const kantinResponse = await api.get('/savings/kantin/incomes', {
           params: { month: selectedMonth }
         });
-        
+
         if (kantinResponse.data.success && kantinResponse.data.data) {
           const kantinList = kantinResponse.data.data;
           kantinList.forEach((kantin: KantinIncome) => {
@@ -281,7 +281,7 @@ const ReportsPage: React.FC = () => {
       } catch (error) {
         console.warn('Failed to fetch kantin incomes:', error);
       }
-      
+
       // ========== 4. FETCH LOAN INSTALLMENTS (Angsuran Pinjaman) ==========
       try {
         // Get all loans
@@ -298,9 +298,9 @@ const ReportsPage: React.FC = () => {
                     installments.forEach((installment: InstallmentData) => {
                       const installmentDate = installment.payment_date;
                       const installmentMonth = installmentDate ? installmentDate.slice(0, 7) : '';
-                      
+
                       if (selectedMonth && installmentMonth !== selectedMonth) return;
-                      
+
                       allTransactions.push({
                         id: `installment_${installment.id}`,
                         original_id: installment.id,
@@ -329,12 +329,12 @@ const ReportsPage: React.FC = () => {
       } catch (error) {
         console.warn('Failed to fetch loan installments:', error);
       }
-      
+
       // Sort by date (newest first)
       allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
+
       setTransactions(allTransactions);
-      
+
       // ========== CALCULATE SUMMARY ==========
       let totalIncome = 0;
       let totalSavingsDeposit = 0;
@@ -342,13 +342,13 @@ const ReportsPage: React.FC = () => {
       let totalLoansApplication = 0;
       let totalInstallments = 0;
       let totalKantin = 0;
-      
+
       allTransactions.forEach((t) => {
         // Total income (money coming in)
         if (t.is_income) {
           totalIncome += t.amount;
         }
-        
+
         // Categorize for display
         if (t.type === 'saving' || t.type === 'payroll') {
           totalSavingsDeposit += t.amount;
@@ -362,7 +362,7 @@ const ReportsPage: React.FC = () => {
           totalKantin += t.amount;
         }
       });
-      
+
       setReportSummary({
         total_income: totalIncome,
         total_savings_deposit: totalSavingsDeposit,
@@ -374,7 +374,7 @@ const ReportsPage: React.FC = () => {
         member_count: financialSummary.total_members,
         active_loan_count: financialSummary.active_loans_count
       });
-      
+
     } catch (error: any) {
       console.error('Failed to fetch data:', error);
       addNotification({
@@ -404,24 +404,31 @@ const ReportsPage: React.FC = () => {
   }, [fetchAllData, selectedMonth]);
 
   const getFilteredTransactions = () => {
-    if (reportType === 'all') return transactions;
-    if (reportType === 'savings') {
-      return transactions.filter(t => t.type === 'saving' || t.type === 'payroll' || t.type === 'withdrawal');
+    let filtered = [];
+
+    if (reportType === 'all') {
+      filtered = [...transactions];
+    } else if (reportType === 'savings') {
+      filtered = transactions.filter(t => t.type === 'saving' || t.type === 'payroll' || t.type === 'withdrawal');
+    } else if (reportType === 'loans') {
+      filtered = transactions.filter(t => t.type === 'loan_application');
+    } else if (reportType === 'installments') {
+      filtered = transactions.filter(t => t.type === 'loan_installment');
+    } else if (reportType === 'kantin') {
+      filtered = transactions.filter(t => t.type === 'kantin');
+    } else {
+      filtered = [...transactions];
     }
-    if (reportType === 'loans') {
-      return transactions.filter(t => t.type === 'loan_application');
-    }
-    if (reportType === 'installments') {
-      return transactions.filter(t => t.type === 'loan_installment');
-    }
-    if (reportType === 'kantin') {
-      return transactions.filter(t => t.type === 'kantin');
-    }
-    return transactions;
+
+    return filtered;
   };
 
   const filteredTransactions = getFilteredTransactions();
-  const filteredTotal = filteredTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+  const filteredTotal = filteredTransactions.reduce((sum, t) => {
+    const amount = typeof t.amount === 'number' ? t.amount : Number(t.amount) || 0;
+    return sum + amount;
+  }, 0);
 
   const handleExportCSV = async () => {
     if (transactions.length === 0) {
@@ -437,15 +444,15 @@ const ReportsPage: React.FC = () => {
     try {
       const monthName = getMonthName(selectedMonth);
       const reportDate = new Date().toLocaleDateString('id-ID');
-      
+
       let csvContent = [];
-      
+
       // Header
       csvContent.push(['LAPORAN KEUANGAN KOPERASI KANIM JAMBI']);
       csvContent.push([`Periode: ${monthName}`]);
       csvContent.push([`Tanggal Cetak: ${reportDate}`]);
       csvContent.push([]);
-      
+
       // Summary
       csvContent.push(['RINGKASAN LAPORAN']);
       csvContent.push(['Total Pendapatan', formatCurrency(reportSummary.total_income)]);
@@ -457,11 +464,11 @@ const ReportsPage: React.FC = () => {
       csvContent.push(['Jumlah Anggota', reportSummary.member_count.toString()]);
       csvContent.push(['Pinjaman Aktif', reportSummary.active_loan_count.toString()]);
       csvContent.push([]);
-      
+
       // Details header
       csvContent.push(['DETAIL TRANSAKSI']);
       csvContent.push(['No', 'Tanggal', 'Jenis Transaksi', 'Kategori', 'Deskripsi', 'Metode', 'Jumlah (Rp)']);
-      
+
       // Data rows
       let no = 1;
       filteredTransactions.forEach((t) => {
@@ -473,7 +480,7 @@ const ReportsPage: React.FC = () => {
         else if (t.type === 'kantin') jenisTransaksi = 'Pemasukan Kantin';
         else if (t.type === 'withdrawal') jenisTransaksi = 'Penarikan Simpanan';
         else jenisTransaksi = t.title;
-        
+
         csvContent.push([
           no.toString(),
           formatDate(t.date),
@@ -485,10 +492,10 @@ const ReportsPage: React.FC = () => {
         ]);
         no++;
       });
-      
+
       csvContent.push([]);
       csvContent.push(['TOTAL KESELURUHAN', '', '', '', '', '', formatCurrency(filteredTotal)]);
-      
+
       // Generate CSV
       const csvString = csvContent.map(row => row.join(',')).join('\n');
       const blob = new Blob(["\uFEFF" + csvString], { type: 'text/csv;charset=utf-8;' });
@@ -500,7 +507,7 @@ const ReportsPage: React.FC = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       addNotification({
         title: 'Berhasil',
         message: `Laporan keuangan bulan ${monthName} berhasil diekspor`,
@@ -532,9 +539,9 @@ const ReportsPage: React.FC = () => {
     try {
       const monthName = getMonthName(selectedMonth);
       const reportDate = new Date().toLocaleDateString('id-ID');
-      const userName = localStorage.getItem('user') ? 
+      const userName = localStorage.getItem('user') ?
         JSON.parse(localStorage.getItem('user') || '{}').name : 'System';
-      
+
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
         addNotification({
@@ -545,7 +552,7 @@ const ReportsPage: React.FC = () => {
         setIsExporting(false);
         return;
       }
-      
+
       const tableRows = filteredTransactions.map((t, index) => {
         let jenisTransaksi = '';
         if (t.type === 'saving') jenisTransaksi = 'Setoran Sukarela';
@@ -555,7 +562,7 @@ const ReportsPage: React.FC = () => {
         else if (t.type === 'kantin') jenisTransaksi = 'Pemasukan Kantin';
         else if (t.type === 'withdrawal') jenisTransaksi = 'Penarikan Simpanan';
         else jenisTransaksi = t.title;
-        
+
         return `
           <tr>
             <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${index + 1}</td>
@@ -566,7 +573,7 @@ const ReportsPage: React.FC = () => {
           </tr>
         `;
       }).join('');
-      
+
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -743,10 +750,10 @@ const ReportsPage: React.FC = () => {
         </body>
         </html>
       `);
-      
+
       printWindow.document.close();
       printWindow.print();
-      
+
       addNotification({
         title: 'Berhasil',
         message: `Laporan keuangan bulan ${monthName} siap dicetak`,
@@ -765,7 +772,7 @@ const ReportsPage: React.FC = () => {
   };
 
   const getTransactionIcon = (type: string) => {
-    switch(type) {
+    switch (type) {
       case 'saving':
         return <Wallet size={16} className="text-green-600" />;
       case 'payroll':
@@ -784,7 +791,7 @@ const ReportsPage: React.FC = () => {
   };
 
   const getTransactionBgColor = (type: string) => {
-    switch(type) {
+    switch (type) {
       case 'saving':
         return 'bg-green-100 dark:bg-green-900/20';
       case 'payroll':
@@ -814,12 +821,9 @@ const ReportsPage: React.FC = () => {
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Laporan lengkap setoran simpanan, penarikan, pinjaman, angsuran, dan pemasukan kantin
           </p>
-          <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-            ✓ Hanya menampilkan transaksi dengan status TERVERIFIKASI (pending tidak ditampilkan)
-          </p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={fetchAllData}
             disabled={isLoading}
             className="p-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl text-gray-500 hover:text-imigrasi-primary transition-colors disabled:opacity-50"
@@ -838,15 +842,15 @@ const ReportsPage: React.FC = () => {
             </label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-              <input 
-                type="month" 
+              <input
+                type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-lg focus:border-imigrasi-primary outline-none transition-all dark:text-white text-sm"
               />
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-1">
               <Filter size={12} /> Tipe Laporan
@@ -862,9 +866,9 @@ const ReportsPage: React.FC = () => {
               <option value="kantin">Pemasukan Kantin</option>
             </select>
           </div>
-          
+
           <div className="flex items-end gap-2">
-            <button 
+            <button
               onClick={handleExportCSV}
               disabled={isExporting || transactions.length === 0 || isLoading}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
@@ -872,7 +876,7 @@ const ReportsPage: React.FC = () => {
               {isExporting ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
               Ekspor CSV
             </button>
-            <button 
+            <button
               onClick={handleExportPDF}
               disabled={isExporting || transactions.length === 0 || isLoading}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-imigrasi-primary text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors disabled:opacity-50"
@@ -897,7 +901,7 @@ const ReportsPage: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -909,7 +913,7 @@ const ReportsPage: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -921,7 +925,7 @@ const ReportsPage: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -953,7 +957,7 @@ const ReportsPage: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 p-4">
           <h3 className="font-bold text-gray-700 dark:text-gray-300 text-sm mb-3 flex items-center gap-2">
             <Users size={14} className="text-blue-500" />
@@ -970,7 +974,7 @@ const ReportsPage: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 p-4">
           <h3 className="font-bold text-gray-700 dark:text-gray-300 text-sm mb-3 flex items-center gap-2">
             <Calendar size={14} className="text-imigrasi-primary" />
@@ -1004,7 +1008,7 @@ const ReportsPage: React.FC = () => {
             </span>
           </div>
         </div>
-        
+
         <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
           {isLoading ? (
             <div className="p-12 text-center">
@@ -1023,7 +1027,7 @@ const ReportsPage: React.FC = () => {
             <div className="p-12 text-center">
               <Filter size={40} className="mx-auto text-gray-400 mb-2" />
               <p className="text-gray-500">Tidak ada transaksi untuk filter yang dipilih</p>
-              <button 
+              <button
                 onClick={() => setReportType('all')}
                 className="mt-3 px-4 py-2 text-sm bg-imigrasi-primary text-white rounded-lg"
               >
@@ -1051,7 +1055,7 @@ const ReportsPage: React.FC = () => {
                   else if (transaction.type === 'kantin') jenisTransaksi = 'Pemasukan Kantin';
                   else if (transaction.type === 'withdrawal') jenisTransaksi = 'Penarikan Simpanan';
                   else jenisTransaksi = transaction.title;
-                  
+
                   return (
                     <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors">
                       <td className="px-4 py-3 text-gray-500 text-xs">{index + 1}</td>
@@ -1077,22 +1081,20 @@ const ReportsPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-3">
                         {transaction.payment_method && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            transaction.payment_method === 'cash' ? 'bg-green-100 text-green-700' :
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${transaction.payment_method === 'cash' ? 'bg-green-100 text-green-700' :
                             transaction.payment_method === 'transfer' ? 'bg-blue-100 text-blue-700' :
-                            transaction.payment_method === 'potong_gaji' ? 'bg-purple-100 text-purple-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {transaction.payment_method === 'cash' ? 'Tunai' : 
-                             transaction.payment_method === 'transfer' ? 'Transfer' :
-                             transaction.payment_method === 'potong_gaji' ? 'Potong Gaji' : '-'}
+                              transaction.payment_method === 'potong_gaji' ? 'bg-purple-100 text-purple-700' :
+                                'bg-gray-100 text-gray-700'
+                            }`}>
+                            {transaction.payment_method === 'cash' ? 'Tunai' :
+                              transaction.payment_method === 'transfer' ? 'Transfer' :
+                                transaction.payment_method === 'potong_gaji' ? 'Potong Gaji' : '-'}
                           </span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className={`text-xs font-bold ${
-                          transaction.type === 'withdrawal' ? 'text-red-600' : 'text-emerald-600'
-                        }`}>
+                        <span className={`text-xs font-bold ${transaction.type === 'withdrawal' ? 'text-red-600' : 'text-emerald-600'
+                          }`}>
                           {transaction.type === 'withdrawal' ? '-' : '+'}{formatCurrency(transaction.amount)}
                         </span>
                       </td>
@@ -1124,13 +1126,13 @@ const ReportsPage: React.FC = () => {
           <h4 className="font-bold text-blue-900 dark:text-blue-400 text-sm">Informasi Laporan</h4>
           <p className="text-xs text-blue-800 dark:text-blue-500/80 leading-relaxed mt-1">
             Laporan keuangan mencakup seluruh transaksi yang tercatat di sistem meliputi:
-            <strong> Setoran Simpanan</strong> (wajib, pokok, sukarela), 
+            <strong> Setoran Simpanan</strong> (wajib, pokok, sukarela),
             <strong> Penarikan Simpanan</strong>,
-            <strong> Angsuran Pinjaman</strong>, dan 
+            <strong> Angsuran Pinjaman</strong>, dan
             <strong> Pemasukan Kantin</strong>.
             <br />
             <span className="text-green-600">✓ Hanya transaksi dengan status TERVERIFIKASI yang ditampilkan dalam laporan.</span>
-            Gunakan filter untuk melihat jenis transaksi tertentu. Ekspor ke CSV untuk analisis lebih lanjut atau cetak PDF untuk arsip.
+            <span className="text-blue-600"> Gunakan filter untuk melihat jenis transaksi tertentu. Ekspor ke CSV untuk analisis lebih lanjut atau cetak PDF untuk arsip.</span>
           </p>
         </div>
       </div>

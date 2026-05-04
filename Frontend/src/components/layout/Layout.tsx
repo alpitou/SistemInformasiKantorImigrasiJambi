@@ -264,7 +264,7 @@ const Layout: React.FC = () => {
           "hidden md:flex flex-col sticky top-0 h-screen z-30 shadow-2xl transition-colors duration-300",
           isDarkMode ? "bg-neutral-950 border-r border-neutral-800" : "bg-imigrasi-primary text-white"
         )}
-       >
+      >
         <div className="p-5 flex items-center justify-between overflow-hidden shrink-0">
           <AnimatePresence mode="wait">
             {isSidebarOpen && (
@@ -342,7 +342,6 @@ const Layout: React.FC = () => {
         </nav>
       </motion.aside>
 
-      {/* Mobile Menu - same as before but with withdrawal menu */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
@@ -497,7 +496,9 @@ const Layout: React.FC = () => {
                 <img src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`} alt={user?.name} className="w-8 h-8 rounded-full border-2 border-imigrasi-accent shadow-sm" />
                 <div className="hidden sm:block text-left">
                   <p className="text-xs font-bold text-gray-900 dark:text-white leading-none">{user?.name || 'User'}</p>
-                  <p className="text-[9px] text-gray-500 dark:text-gray-400 mt-1 font-mono">{user?.nip || '-'}</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 font-mono">
+                    {user?.nip || user?.nik || '-'}
+                  </p>
                 </div>
               </button>
 
