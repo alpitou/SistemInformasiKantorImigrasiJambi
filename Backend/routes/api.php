@@ -36,12 +36,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // LOAN ROUTES
     Route::get('/loans', [LoanController::class, 'index']);
     Route::post('/loans', [LoanController::class, 'store']);
+    Route::post('/loans/generate-draft', [LoanController::class, 'generateDraftAgreement']);  // <-- TAMBAHKAN INI
+    Route::post('/loans/submit-with-document', [LoanController::class, 'submitWithDocument']);  // <-- TAMBAHKAN INI
     Route::get('/loans/{id}', [LoanController::class, 'show']);
     Route::get('/loans/{id}/generate-agreement', [LoanController::class, 'generateAgreement']);
     Route::post('/loans/{id}/upload-document', [LoanController::class, 'uploadDocument']);
     Route::get('/loans/{id}/download-document', [LoanController::class, 'downloadDocument']);
     Route::get('/loans/{id}/document-info', [LoanController::class, 'getDocumentInfo']);
-    
+    Route::get('/loans/{id}/installments', [LoanController::class, 'getInstallments']);
+        
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/loans/{id}/treasurer-approve', [LoanController::class, 'treasurerApprove']);
         Route::put('/loans/{id}/disburse', [LoanController::class, 'disburse']);
