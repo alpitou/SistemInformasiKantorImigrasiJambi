@@ -1,13 +1,13 @@
 // src/pages/admin/LoanArchives.tsx
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { 
-  FileText, 
-  Search, 
-  Filter, 
-  Download, 
-  Calendar, 
-  User, 
+import {
+  FileText,
+  Search,
+  Filter,
+  Download,
+  Calendar,
+  User,
   CheckCircle2,
   RefreshCw,
   Archive,
@@ -40,10 +40,10 @@ const LoanArchives: React.FC = () => {
     try {
       const response = await api.get('/loans', { params: { archive: true } });
       const allLoans = response.data?.data?.data || [];
-      
-      const filtered = allLoans.filter((loan: any) => 
-        loan.status === 'completed' || 
-        loan.status === 'rejected' || 
+
+      const filtered = allLoans.filter((loan: any) =>
+        loan.status === 'completed' ||
+        loan.status === 'rejected' ||
         loan.status === 'active' ||
         loan.status === 'approved'
       );
@@ -83,7 +83,7 @@ const LoanArchives: React.FC = () => {
       const response = await api.get(`/loans/${loan.id}/download-document`, {
         responseType: 'blob'
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -92,7 +92,7 @@ const LoanArchives: React.FC = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       addNotification({
         title: 'Berhasil',
         message: 'Dokumen berhasil diunduh',
@@ -129,14 +129,14 @@ const LoanArchives: React.FC = () => {
     return <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${s.className}`}>{s.label}</span>;
   };
 
-  const filteredArchives = archives.filter(item => 
+  const filteredArchives = archives.filter(item =>
     item.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.user?.nip?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.id.toString().includes(searchTerm)
   );
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="space-y-8"
@@ -147,7 +147,7 @@ const LoanArchives: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400">Penyimpanan digital dokumen surat perjanjian pinjaman anggota.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={handleRefresh}
             className="p-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl text-gray-500 hover:text-imigrasi-primary transition-colors"
           >
@@ -196,9 +196,9 @@ const LoanArchives: React.FC = () => {
       <div className="glass-card p-4 rounded-3xl flex flex-col md:flex-row gap-4 items-center">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Cari nama anggota, NIP, atau ID pinjaman..." 
+          <input
+            type="text"
+            placeholder="Cari nama anggota, NIP, atau ID pinjaman..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
@@ -250,9 +250,9 @@ const LoanArchives: React.FC = () => {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         {item.agreement_document && (
-                          <button 
+                          <button
                             onClick={() => handleDownloadDocument(item)}
-                            className="p-2 text-gray-400 hover:text-imigrasi-primary transition-colors"
+                            className="p-2 text-gray-400 hover:text-imigrasi-primary hover:bg-imigrasi-primary/10 rounded-lg transition-all duration-200"
                             title="Download Dokumen"
                           >
                             <Download size={18} />

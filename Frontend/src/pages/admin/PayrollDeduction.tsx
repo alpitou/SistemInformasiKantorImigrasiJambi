@@ -699,23 +699,23 @@ const PayrollDeduction: React.FC = () => {
 
       {/* Stats Summary - TOTAL POTONGAN */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 text-white">
+        <div className="glass-card p-6 rounded-2xl bg-neutral-700 border-2">
           <p className="text-xs opacity-80 mb-1">👥 Total Anggota</p>
           <p className="text-2xl font-bold">{stats.totalMembers}</p>
         </div>
-        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-4 text-white">
+        <div className="glass-card p-6 rounded-2xl bg-neutral-700 border-2">
           <p className="text-xs opacity-80 mb-1">💰 Potongan Simpanan</p>
           <p className="text-lg font-bold">{formatCurrency(totals.totalSavings)}</p>
           <div className="text-[10px] opacity-80 mt-1">
             Pokok: {formatCurrency(totals.pokokTotal)} • Wajib: {formatCurrency(totals.wajibTotal)}
           </div>
         </div>
-        <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-4 text-white">
+        <div className="glass-card p-6 rounded-2xl bg-neutral-700 border-2">
           <p className="text-xs opacity-80 mb-1">🏦 Potongan Angsuran</p>
           <p className="text-lg font-bold">{formatCurrency(totals.totalLoan)}</p>
           <p className="text-[10px] opacity-80 mt-1">{totals.loanCount} anggota</p>
         </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-4 text-white">
+        <div className="glass-card p-6 rounded-2xl bg-neutral-700 border-2">
           <p className="text-xs opacity-80 mb-1">💰 TOTAL KESELURUHAN</p>
           <p className="text-2xl font-bold">{formatCurrency(totals.totalAll)}</p>
         </div>
