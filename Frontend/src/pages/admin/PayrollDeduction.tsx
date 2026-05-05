@@ -27,6 +27,17 @@ interface MemberSaving {
   remaining_to_pay: number;
 }
 
+interface ActiveLoan {
+  id: number;
+  amount: number;
+  monthly_installment: number;
+  remaining_balance: number;
+  interest_rate: number;
+  tenor_months: number;
+  installments_paid?: number;
+  paid_count?: number;
+}
+
 interface Member {
   id: number;
   name: string;
@@ -35,8 +46,11 @@ interface Member {
   join_date: string;
   already_processed_savings: boolean;
   has_active_loan: boolean;
-  loan_installment: number;
-  loan_remaining: number;
+  active_loans?: ActiveLoan[];  // Array untuk multiple loans
+  loan_installment?: number;     // Legacy: single loan installment
+  loan_remaining?: number;       // Legacy: single loan remaining
+  total_loan_installment: number;  // Total angsuran dari semua pinjaman aktif
+  total_loan_remaining: number;     // Total sisa dari semua pinjaman aktif
   loan_already_processed: boolean;
   savings: MemberSaving[];
 }
@@ -138,6 +152,54 @@ const PayrollDeduction: React.FC = () => {
     }
   }, [axiosInstance]);
 
+  // Helper function untuk mendapatkan active loans dari response API
+  const getActiveLoans = useCallback((member: any): ActiveLoan[] => {
+    // Cek apakah response menggunakan active_loans array (format baru)
+    if (member.active_loans && Array.isArray(member.active_loans) && member.active_loans.length > 0) {
+      return member.active_loans.map((loan: any) => ({
+        id: loan.id,
+        amount: loan.amount,
+        monthly_installment: loan.monthly_installment,
+        remaining_balance: loan.remaining_balance,
+        interest_rate: loan.interest_rate,
+        tenor_months: loan.tenor_months,
+        installments_paid: loan.installments_paid || loan.paid_count || 0
+      }));
+    }
+    
+    // Fallback: jika masih menggunakan format single loan (loan_installment)
+    if (member.has_active_loan && member.loan_installment && member.loan_installment > 0) {
+      return [{
+        id: member.id,
+        amount: member.loan_amount || 0,
+        monthly_installment: member.loan_installment,
+        remaining_balance: member.loan_remaining || 0,
+        interest_rate: member.interest_rate || 1,
+        tenor_months: member.tenor_months || 10,
+        installments_paid: member.installments_paid || 0
+      }];
+    }
+    
+    return [];
+  }, []);
+
+  // Helper function untuk mendapatkan total angsuran pinjaman
+  const getTotalLoanInstallment = useCallback((member: any): number => {
+    // Jika sudah ada total_loan_installment dari API
+    if (member.total_loan_installment !== undefined && member.total_loan_installment > 0) {
+      return member.total_loan_installment;
+    }
+    
+    // Hitung dari active_loans
+    const loans = getActiveLoans(member);
+    return loans.reduce((sum, loan) => sum + loan.monthly_installment, 0);
+  }, [getActiveLoans]);
+
+  // Helper function untuk mendapatkan detail loans
+  const getMemberLoans = useCallback((member: any): ActiveLoan[] => {
+    return getActiveLoans(member);
+  }, [getActiveLoans]);
+
   const fetchMembers = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -145,12 +207,29 @@ const PayrollDeduction: React.FC = () => {
         params: { month: selectedMonth }
       });
       
+      console.log('API Response members:', response.data);
+      
       if (response.data.success) {
-        setMembers(response.data.data);
-        setFilteredMembers(response.data.data);
+        // Process members to ensure consistent data structure
+        const processedMembers = response.data.data.map((member: any) => {
+          const activeLoans = getActiveLoans(member);
+          const totalLoanInstallment = getTotalLoanInstallment(member);
+          
+          return {
+            ...member,
+            active_loans: activeLoans,
+            total_loan_installment: totalLoanInstallment,
+            total_loan_remaining: activeLoans.reduce((sum, loan) => sum + loan.remaining_balance, 0),
+            // Pastikan has_active_loan konsisten
+            has_active_loan: activeLoans.length > 0 || member.has_active_loan
+          };
+        });
+        
+        setMembers(processedMembers);
+        setFilteredMembers(processedMembers);
         
         const initialEdits: Record<number, Record<number, number>> = {};
-        response.data.data.forEach((member: Member) => {
+        processedMembers.forEach((member: Member) => {
           initialEdits[member.id] = {};
           member.savings.forEach(saving => {
             if (saving.is_applicable && !saving.is_processed) {
@@ -180,7 +259,7 @@ const PayrollDeduction: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [axiosInstance, addNotification, selectedMonth]);
+  }, [axiosInstance, addNotification, selectedMonth, getActiveLoans, getTotalLoanInstallment]);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -247,6 +326,16 @@ const PayrollDeduction: React.FC = () => {
     return total;
   }, [editedAmounts]);
 
+  const getMemberLoanTotal = useCallback((member: Member) => {
+    if (!processLoanInstallments || member.loan_already_processed) return 0;
+    // Gunakan total_loan_installment yang sudah dihitung
+    return member.total_loan_installment || 0;
+  }, [processLoanInstallments]);
+
+  const getMemberLoansList = useCallback((member: Member): ActiveLoan[] => {
+    return member.active_loans || [];
+  }, []);
+
   const handleProcessPayroll = async () => {
     const deductions = [];
     for (const member of filteredMembers) {
@@ -266,7 +355,7 @@ const PayrollDeduction: React.FC = () => {
       m.has_active_loan && 
       processLoanInstallments && 
       !m.loan_already_processed &&
-      m.loan_installment > 0
+      m.total_loan_installment > 0
     );
     
     if (deductions.length === 0 && membersWithLoan.length === 0) {
@@ -279,7 +368,7 @@ const PayrollDeduction: React.FC = () => {
     }
     
     const totalSavingsDeduction = deductions.reduce((sum, d) => sum + d.amount, 0);
-    const totalLoanDeduction = membersWithLoan.reduce((sum, m) => sum + m.loan_installment, 0);
+    const totalLoanDeduction = membersWithLoan.reduce((sum, m) => sum + (m.total_loan_installment || 0), 0);
     
     let confirmMessage = `⚠️ KONFIRMASI POTONGAN PAYROLL ⚠️\n\n`;
     confirmMessage += `📅 Periode: ${getMonthName(selectedMonth)}\n`;
@@ -395,8 +484,8 @@ const PayrollDeduction: React.FC = () => {
         }
       }
       
-      if (member.has_active_loan && processLoanInstallments && !member.loan_already_processed && member.loan_installment > 0) {
-        totalLoan += member.loan_installment;
+      if (member.has_active_loan && processLoanInstallments && !member.loan_already_processed && member.total_loan_installment > 0) {
+        totalLoan += member.total_loan_installment;
       }
     }
     
@@ -408,7 +497,7 @@ const PayrollDeduction: React.FC = () => {
       wajibTotal,
       pokokCount,
       wajibCount,
-      loanCount: filteredMembers.filter(m => m.has_active_loan && !m.loan_already_processed && m.loan_installment > 0).length
+      loanCount: filteredMembers.filter(m => m.has_active_loan && !m.loan_already_processed && (m.total_loan_installment || 0) > 0).length
     };
   }, [filteredMembers, editedAmounts, processLoanInstallments]);
 
@@ -417,7 +506,7 @@ const PayrollDeduction: React.FC = () => {
   const stats = {
     totalMembers: filteredMembers.length,
     activeLoanMembers: filteredMembers.filter(m => m.has_active_loan).length,
-    pendingLoanMembers: filteredMembers.filter(m => m.has_active_loan && !m.loan_already_processed && m.loan_installment > 0).length,
+    pendingLoanMembers: filteredMembers.filter(m => m.has_active_loan && !m.loan_already_processed && (m.total_loan_installment || 0) > 0).length,
     processedMembers: filteredMembers.filter(m => m.already_processed_savings).length,
   };
 
@@ -657,8 +746,11 @@ const PayrollDeduction: React.FC = () => {
           filteredMembers.map((member) => {
             const isExpanded = expandedMembers.has(member.id);
             const memberSavingsTotal = getMemberTotal(member);
-            const hasLoanDeduction = member.has_active_loan && processLoanInstallments && !member.loan_already_processed && member.loan_installment > 0;
-            const memberTotalWithLoan = memberSavingsTotal + (hasLoanDeduction ? member.loan_installment : 0);
+            const memberLoanTotal = getMemberLoanTotal(member);
+            const hasLoanDeduction = member.has_active_loan && processLoanInstallments && !member.loan_already_processed && memberLoanTotal > 0;
+            const memberTotalWithLoan = memberSavingsTotal + (hasLoanDeduction ? memberLoanTotal : 0);
+            const memberLoans = getMemberLoansList(member);
+            const loanCount = memberLoans.length;
             
             return (
               <div key={member.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
@@ -682,7 +774,7 @@ const PayrollDeduction: React.FC = () => {
                           )}
                           {member.has_active_loan && (
                             <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <HandCoins size={10} /> Pinjaman Aktif
+                              <HandCoins size={10} /> {loanCount > 1 ? `${loanCount} Pinjaman Aktif` : 'Pinjaman Aktif'}
                             </span>
                           )}
                         </div>
@@ -695,6 +787,11 @@ const PayrollDeduction: React.FC = () => {
                     <div className="text-right">
                       <div className="text-sm text-gray-500">Total Potongan Bulan Ini</div>
                       <div className="text-xl font-bold text-emerald-600">{formatCurrency(memberTotalWithLoan)}</div>
+                      {memberLoanTotal > 0 && (
+                        <div className="text-[10px] text-amber-600">
+                          Angsuran: {formatCurrency(memberLoanTotal)}
+                        </div>
+                      )}
                     </div>
                     <div className="text-gray-400">
                       {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
@@ -752,33 +849,65 @@ const PayrollDeduction: React.FC = () => {
                                   <span className="text-gray-500">Saldo saat ini:</span>
                                   <span className="font-medium">{formatCurrency(saving.current_balance)}</span>
                                 </div>
+                                
+                                {saving.type_name === 'Pokok' && saving.remaining_to_pay > 0 && (
+                                  <div className="mt-2 text-[10px] text-orange-500">
+                                    Sisa yang harus dibayar: {formatCurrency(saving.remaining_to_pay)}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
                           
-                          {/* Loan Deduction Card */}
-                          {member.has_active_loan && (
+                          {/* Loan Deduction Card - Tampilkan semua pinjaman aktif */}
+                          {member.has_active_loan && memberLoans.length > 0 && (
                             <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
                               <div className="flex items-center gap-2 mb-3">
                                 <HandCoins size={18} className="text-amber-600" />
-                                <label className="text-sm font-semibold text-gray-700">Angsuran Pinjaman</label>
+                                <label className="text-sm font-semibold text-gray-700">
+                                  Angsuran Pinjaman {memberLoans.length > 1 ? `(${memberLoans.length} pinjaman)` : ''}
+                                </label>
                               </div>
                               
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="text-gray-500">Angsuran per bulan:</span>
-                                  <span className="font-bold text-amber-700">{formatCurrencyDecimal(member.loan_installment)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-500">Sisa pinjaman:</span>
-                                  <span className="font-medium">{formatCurrencyDecimal(member.loan_remaining)}</span>
-                                </div>
-                                {!member.loan_already_processed && processLoanInstallments && member.loan_installment > 0 && (
+                              <div className="space-y-3">
+                                {memberLoans.map((loan, idx) => {
+                                  const paidCount = loan.installments_paid || 0;
+                                  const remainingInstallments = loan.tenor_months - paidCount;
+                                  return (
+                                    <div key={loan.id} className="border-b border-amber-100 pb-2 last:border-0">
+                                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                        <span>Pinjaman #{idx + 1}</span>
+                                        <span>Angsuran ke-{paidCount + 1} / {loan.tenor_months}</span>
+                                      </div>
+                                      <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">Angsuran per bulan:</span>
+                                        <span className="font-bold text-amber-700">{formatCurrencyDecimal(loan.monthly_installment)}</span>
+                                      </div>
+                                      <div className="flex justify-between text-xs mt-1">
+                                        <span className="text-gray-500">Sisa pinjaman:</span>
+                                        <span className="font-medium">{formatCurrencyDecimal(loan.remaining_balance)}</span>
+                                      </div>
+                                      {remainingInstallments > 0 && (
+                                        <div className="text-[10px] text-gray-400 mt-1">
+                                          Sisa {remainingInstallments} bulan lagi
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                                
+                                {!member.loan_already_processed && processLoanInstallments && memberLoanTotal > 0 && (
                                   <div className="mt-3 pt-2 border-t border-amber-200">
                                     <div className="flex justify-between text-emerald-600 font-semibold">
-                                      <span>Akan dipotong:</span>
-                                      <span>{formatCurrencyDecimal(member.loan_installment)}</span>
+                                      <span>Total akan dipotong:</span>
+                                      <span>{formatCurrencyDecimal(memberLoanTotal)}</span>
                                     </div>
+                                  </div>
+                                )}
+                                
+                                {member.loan_already_processed && (
+                                  <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded-lg">
+                                    ✓ Angsuran bulan ini sudah diproses
                                   </div>
                                 )}
                               </div>

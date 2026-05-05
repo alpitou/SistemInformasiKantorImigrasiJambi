@@ -31,6 +31,16 @@ interface MemberSaving {
   remaining_to_pay: number;
 }
 
+interface ActiveLoan {
+  id: number;
+  amount: number;
+  monthly_installment: number;
+  remaining_balance: number;
+  interest_rate: number;
+  tenor_months: number;
+  installments_paid?: number;
+}
+
 interface MemberData {
   id: number;
   name: string;
@@ -39,8 +49,11 @@ interface MemberData {
   join_date: string;
   already_processed_savings: boolean;
   has_active_loan: boolean;
-  loan_installment: number;
-  loan_remaining: number;
+  active_loans?: ActiveLoan[];
+  loan_installment?: number;      // Legacy
+  loan_remaining?: number;         // Legacy
+  total_loan_installment?: number;
+  total_loan_remaining?: number;
   loan_already_processed: boolean;
   savings: MemberSaving[];
 }
@@ -57,6 +70,15 @@ interface MemberDeduction {
   total: number;
   is_processed: boolean;
   will_be_deducted: boolean;
+  loan_count?: number;
+  loan_details?: {
+    id: number;
+    amount: number;
+    monthly_installment: number;
+    remaining_balance: number;
+    installments_paid: number;
+    tenor_months: number;
+  }[];
 }
 
 interface SummaryTotals {
@@ -131,6 +153,36 @@ const DeductionExport: React.FC = () => {
     return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
   };
 
+  // Helper untuk mendapatkan active loans dari member
+  const getActiveLoansFromMember = useCallback((member: MemberData): ActiveLoan[] => {
+    // Prioritaskan active_loans array jika ada
+    if (member.active_loans && Array.isArray(member.active_loans) && member.active_loans.length > 0) {
+      return member.active_loans;
+    }
+    // Fallback ke format single loan
+    if (member.has_active_loan && member.loan_installment && member.loan_installment > 0) {
+      return [{
+        id: member.id,
+        amount: 0,
+        monthly_installment: member.loan_installment,
+        remaining_balance: member.loan_remaining || 0,
+        interest_rate: 1,
+        tenor_months: 10,
+        installments_paid: 0
+      }];
+    }
+    return [];
+  }, []);
+
+  // Helper untuk mendapatkan total angsuran
+  const getTotalLoanInstallment = useCallback((member: MemberData): number => {
+    if (member.total_loan_installment !== undefined && member.total_loan_installment > 0) {
+      return member.total_loan_installment;
+    }
+    const loans = getActiveLoansFromMember(member);
+    return loans.reduce((sum, loan) => sum + (loan.monthly_installment || 0), 0);
+  }, [getActiveLoansFromMember]);
+
   const fetchDeductions = useCallback(async () => {
     setIsFetching(true);
     try {
@@ -150,6 +202,7 @@ const DeductionExport: React.FC = () => {
         let willDeductCount = 0;
 
         const deductionData: MemberDeduction[] = members.map((member: MemberData) => {
+          // Cari jenis simpanan Pokok dan Wajib
           const pokokSaving = member.savings?.find((s: MemberSaving) => s.type_name === 'Pokok');
           const wajibSaving = member.savings?.find((s: MemberSaving) => s.type_name === 'Wajib');
           
@@ -172,19 +225,31 @@ const DeductionExport: React.FC = () => {
             if (wajib > 0) willBeDeducted = true;
           }
           
-          // Hitung angsuran pinjaman (hanya jika belum dipotong bulan ini)
-          let loanInstallment = 0;
-          if (member.has_active_loan && !member.loan_already_processed && member.loan_installment > 0) {
-            loanInstallment = member.loan_installment;
+          // Dapatkan active loans
+          const activeLoans = getActiveLoansFromMember(member);
+          const loanInstallment = getTotalLoanInstallment(member);
+          
+          // Hitung jumlah anggota yang punya pinjaman (unique)
+          if (activeLoans.length > 0 && loanInstallment > 0 && !member.loan_already_processed) {
             loanMemberCount++;
             if (loanInstallment > 0) willBeDeducted = true;
           }
           
-          const total = pokok + wajib + loanInstallment;
+          // Siapkan detail loan untuk ditampilkan
+          const loanDetails = activeLoans.map(loan => ({
+            id: loan.id,
+            amount: loan.amount,
+            monthly_installment: loan.monthly_installment,
+            remaining_balance: loan.remaining_balance,
+            installments_paid: loan.installments_paid || 0,
+            tenor_months: loan.tenor_months
+          }));
+          
+          const total = pokok + wajib + (member.loan_already_processed ? 0 : loanInstallment);
           
           totalPokok += pokok;
           totalWajib += wajib;
-          totalLoan += loanInstallment;
+          totalLoan += (member.loan_already_processed ? 0 : loanInstallment);
           if (willBeDeducted) willDeductCount++;
           
           console.log(`Member ${member.name}: Pokok=${pokok}, Wajib=${wajib}, Loan=${loanInstallment}, Total=${total}, Akan Dipotong=${willBeDeducted}`);
@@ -197,10 +262,12 @@ const DeductionExport: React.FC = () => {
             pokok: pokok,
             wajib: wajib,
             sukarela: 0,
-            loan_installment: loanInstallment,
+            loan_installment: member.loan_already_processed ? 0 : loanInstallment,
             total: total,
             is_processed: member.already_processed_savings,
-            will_be_deducted: willBeDeducted
+            will_be_deducted: willBeDeducted,
+            loan_count: activeLoans.length,
+            loan_details: loanDetails.length > 0 ? loanDetails : undefined
           };
         });
         
@@ -261,7 +328,7 @@ const DeductionExport: React.FC = () => {
     } finally {
       setIsFetching(false);
     }
-  }, [axiosInstance, addNotification, selectedMonth]);
+  }, [axiosInstance, addNotification, selectedMonth, getActiveLoansFromMember, getTotalLoanInstallment]);
 
   useEffect(() => {
     fetchDeductions();
@@ -547,7 +614,14 @@ const DeductionExport: React.FC = () => {
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-imigrasi-primary to-blue-600 flex items-center justify-center text-white text-xs font-bold">
                           {item.name.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</span>
+                        <div>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</span>
+                          {item.loan_count && item.loan_count > 1 && (
+                            <div className="text-[9px] text-amber-600 mt-0.5">
+                              {item.loan_count} Pinjaman Aktif
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm font-mono text-gray-600 dark:text-gray-300">{item.nip}</td>
