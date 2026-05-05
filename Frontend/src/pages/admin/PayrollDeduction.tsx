@@ -5,7 +5,8 @@ import {
   CheckCircle2, Clock, Search, 
   Save, History, Download, HandCoins,
   FileSpreadsheet, Settings, Info, Coins, ShieldCheck,
-  ChevronDown, ChevronUp, AlertCircle
+  ChevronDown, ChevronUp, AlertCircle, TrendingUp,
+  User
 } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications';
 import axios from 'axios';
@@ -26,6 +27,17 @@ interface MemberSaving {
   remaining_to_pay: number;
 }
 
+interface ActiveLoan {
+  id: number;
+  amount: number;
+  monthly_installment: number;
+  remaining_balance: number;
+  interest_rate: number;
+  tenor_months: number;
+  installments_paid?: number;
+  paid_count?: number;
+}
+
 interface Member {
   id: number;
   name: string;
@@ -34,8 +46,11 @@ interface Member {
   join_date: string;
   already_processed_savings: boolean;
   has_active_loan: boolean;
-  loan_installment: number;
-  loan_remaining: number;
+  active_loans?: ActiveLoan[];  // Array untuk multiple loans
+  loan_installment?: number;     // Legacy: single loan installment
+  loan_remaining?: number;       // Legacy: single loan remaining
+  total_loan_installment: number;  // Total angsuran dari semua pinjaman aktif
+  total_loan_remaining: number;     // Total sisa dari semua pinjaman aktif
   loan_already_processed: boolean;
   savings: MemberSaving[];
 }
@@ -71,7 +86,6 @@ const PayrollDeduction: React.FC = () => {
   const [processLoanInstallments, setProcessLoanInstallments] = useState(true);
   const [savingTypes, setSavingTypes] = useState<SavingType[]>([]);
   const [expandedMembers, setExpandedMembers] = useState<Set<number>>(new Set());
-  const [debugInfo, setDebugInfo] = useState<string>('');
 
   const token = localStorage.getItem('token');
   const axiosInstance = useMemo(() => axios.create({
@@ -138,6 +152,54 @@ const PayrollDeduction: React.FC = () => {
     }
   }, [axiosInstance]);
 
+  // Helper function untuk mendapatkan active loans dari response API
+  const getActiveLoans = useCallback((member: any): ActiveLoan[] => {
+    // Cek apakah response menggunakan active_loans array (format baru)
+    if (member.active_loans && Array.isArray(member.active_loans) && member.active_loans.length > 0) {
+      return member.active_loans.map((loan: any) => ({
+        id: loan.id,
+        amount: loan.amount,
+        monthly_installment: loan.monthly_installment,
+        remaining_balance: loan.remaining_balance,
+        interest_rate: loan.interest_rate,
+        tenor_months: loan.tenor_months,
+        installments_paid: loan.installments_paid || loan.paid_count || 0
+      }));
+    }
+    
+    // Fallback: jika masih menggunakan format single loan (loan_installment)
+    if (member.has_active_loan && member.loan_installment && member.loan_installment > 0) {
+      return [{
+        id: member.id,
+        amount: member.loan_amount || 0,
+        monthly_installment: member.loan_installment,
+        remaining_balance: member.loan_remaining || 0,
+        interest_rate: member.interest_rate || 1,
+        tenor_months: member.tenor_months || 10,
+        installments_paid: member.installments_paid || 0
+      }];
+    }
+    
+    return [];
+  }, []);
+
+  // Helper function untuk mendapatkan total angsuran pinjaman
+  const getTotalLoanInstallment = useCallback((member: any): number => {
+    // Jika sudah ada total_loan_installment dari API
+    if (member.total_loan_installment !== undefined && member.total_loan_installment > 0) {
+      return member.total_loan_installment;
+    }
+    
+    // Hitung dari active_loans
+    const loans = getActiveLoans(member);
+    return loans.reduce((sum, loan) => sum + loan.monthly_installment, 0);
+  }, [getActiveLoans]);
+
+  // Helper function untuk mendapatkan detail loans
+  const getMemberLoans = useCallback((member: any): ActiveLoan[] => {
+    return getActiveLoans(member);
+  }, [getActiveLoans]);
+
   const fetchMembers = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -145,53 +207,47 @@ const PayrollDeduction: React.FC = () => {
         params: { month: selectedMonth }
       });
       
-      console.log('Members response:', response.data);
+      console.log('API Response members:', response.data);
       
       if (response.data.success) {
-        setMembers(response.data.data);
-        setFilteredMembers(response.data.data);
+        // Process members to ensure consistent data structure
+        const processedMembers = response.data.data.map((member: any) => {
+          const activeLoans = getActiveLoans(member);
+          const totalLoanInstallment = getTotalLoanInstallment(member);
+          
+          return {
+            ...member,
+            active_loans: activeLoans,
+            total_loan_installment: totalLoanInstallment,
+            total_loan_remaining: activeLoans.reduce((sum, loan) => sum + loan.remaining_balance, 0),
+            // Pastikan has_active_loan konsisten
+            has_active_loan: activeLoans.length > 0 || member.has_active_loan
+          };
+        });
         
-        // Initialize edited amounts with default values
+        setMembers(processedMembers);
+        setFilteredMembers(processedMembers);
+        
         const initialEdits: Record<number, Record<number, number>> = {};
-        response.data.data.forEach((member: Member) => {
+        processedMembers.forEach((member: Member) => {
           initialEdits[member.id] = {};
           member.savings.forEach(saving => {
-            // Only set amount for applicable savings that are not processed
             if (saving.is_applicable && !saving.is_processed) {
               let amount = 0;
               
               if (saving.type_name === 'Pokok') {
-                // For Pokok: only set remaining amount needed
                 amount = Math.min(saving.default_amount, saving.remaining_to_pay);
               } else if (saving.type_name === 'Wajib') {
-                // For Wajib: always set default amount
-                amount = saving.default_amount;
-              } else {
                 amount = saving.default_amount;
               }
               
               initialEdits[member.id][saving.type_id] = amount;
-              console.log(`Set initial amount for ${member.name} - ${saving.type_name}: ${amount}`);
             } else {
               initialEdits[member.id][saving.type_id] = 0;
             }
           });
         });
         setEditedAmounts(initialEdits);
-        
-        // Log totals for debugging
-        let totalPotongan = 0;
-        response.data.data.forEach((member: Member) => {
-          let memberTotal = 0;
-          member.savings.forEach(saving => {
-            const amount = initialEdits[member.id]?.[saving.type_id] || 0;
-            memberTotal += amount;
-          });
-          console.log(`Member ${member.name} total: ${memberTotal}`);
-          totalPotongan += memberTotal;
-        });
-        console.log('Total initial potongan:', totalPotongan);
-        setDebugInfo(`Total potongan awal: ${formatCurrency(totalPotongan)}`);
       }
     } catch (error: any) {
       console.error('Error fetching members:', error);
@@ -203,7 +259,7 @@ const PayrollDeduction: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [axiosInstance, addNotification, selectedMonth]);
+  }, [axiosInstance, addNotification, selectedMonth, getActiveLoans, getTotalLoanInstallment]);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -259,7 +315,6 @@ const PayrollDeduction: React.FC = () => {
     });
   };
 
-  // Calculate total deductions for a member
   const getMemberTotal = useCallback((member: Member) => {
     let total = 0;
     for (const saving of member.savings) {
@@ -271,8 +326,17 @@ const PayrollDeduction: React.FC = () => {
     return total;
   }, [editedAmounts]);
 
+  const getMemberLoanTotal = useCallback((member: Member) => {
+    if (!processLoanInstallments || member.loan_already_processed) return 0;
+    // Gunakan total_loan_installment yang sudah dihitung
+    return member.total_loan_installment || 0;
+  }, [processLoanInstallments]);
+
+  const getMemberLoansList = useCallback((member: Member): ActiveLoan[] => {
+    return member.active_loans || [];
+  }, []);
+
   const handleProcessPayroll = async () => {
-    // Collect savings deductions
     const deductions = [];
     for (const member of filteredMembers) {
       for (const saving of member.savings) {
@@ -287,49 +351,31 @@ const PayrollDeduction: React.FC = () => {
       }
     }
     
-    // Check for loan deductions
     const membersWithLoan = filteredMembers.filter(m => 
       m.has_active_loan && 
       processLoanInstallments && 
       !m.loan_already_processed &&
-      m.loan_installment > 0
+      m.total_loan_installment > 0
     );
-    
-    console.log('Deductions to process:', deductions);
-    console.log('Members with loan:', membersWithLoan.length);
     
     if (deductions.length === 0 && membersWithLoan.length === 0) {
       addNotification({ 
         title: 'Validasi Gagal', 
-        message: 'Tidak ada potongan yang akan diproses. Silakan cek kembali data.', 
+        message: 'Tidak ada potongan yang akan diproses.', 
         type: 'error' 
       });
       return;
     }
     
     const totalSavingsDeduction = deductions.reduce((sum, d) => sum + d.amount, 0);
-    const totalLoanDeduction = membersWithLoan.reduce((sum, m) => sum + m.loan_installment, 0);
+    const totalLoanDeduction = membersWithLoan.reduce((sum, m) => sum + (m.total_loan_installment || 0), 0);
     
-    // Build confirmation message
     let confirmMessage = `⚠️ KONFIRMASI POTONGAN PAYROLL ⚠️\n\n`;
     confirmMessage += `📅 Periode: ${getMonthName(selectedMonth)}\n`;
     confirmMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     
     if (deductions.length > 0) {
       confirmMessage += `💰 POTONGAN SIMPANAN (${deductions.length} item):\n`;
-      const byType: Record<string, { count: number; total: number }> = {};
-      for (const d of deductions) {
-        const savingType = savingTypes.find(t => t.id === d.saving_type_id);
-        const typeName = savingType?.name || 'Unknown';
-        if (!byType[typeName]) {
-          byType[typeName] = { count: 0, total: 0 };
-        }
-        byType[typeName].count++;
-        byType[typeName].total += d.amount;
-      }
-      for (const [type, data] of Object.entries(byType)) {
-        confirmMessage += `   - ${type}: ${data.count} anggota (${formatCurrency(data.total)})\n`;
-      }
       confirmMessage += `   Total Simpanan: ${formatCurrency(totalSavingsDeduction)}\n\n`;
     }
     
@@ -353,8 +399,6 @@ const PayrollDeduction: React.FC = () => {
         process_loan_installments: processLoanInstallments
       });
       
-      console.log('Process response:', response.data);
-      
       if (response.data.success) {
         addNotification({ 
           title: '✅ Berhasil', 
@@ -362,7 +406,6 @@ const PayrollDeduction: React.FC = () => {
           type: 'success' 
         });
         
-        // Refresh data
         await fetchMembers();
         await fetchHistory();
       } else {
@@ -418,7 +461,6 @@ const PayrollDeduction: React.FC = () => {
     }
   };
 
-  // Calculate all statistics
   const calculateTotals = useCallback(() => {
     let totalSavings = 0;
     let totalLoan = 0;
@@ -442,8 +484,8 @@ const PayrollDeduction: React.FC = () => {
         }
       }
       
-      if (member.has_active_loan && processLoanInstallments && !member.loan_already_processed && member.loan_installment > 0) {
-        totalLoan += member.loan_installment;
+      if (member.has_active_loan && processLoanInstallments && !member.loan_already_processed && member.total_loan_installment > 0) {
+        totalLoan += member.total_loan_installment;
       }
     }
     
@@ -455,7 +497,7 @@ const PayrollDeduction: React.FC = () => {
       wajibTotal,
       pokokCount,
       wajibCount,
-      loanCount: filteredMembers.filter(m => m.has_active_loan && !m.loan_already_processed && m.loan_installment > 0).length
+      loanCount: filteredMembers.filter(m => m.has_active_loan && !m.loan_already_processed && (m.total_loan_installment || 0) > 0).length
     };
   }, [filteredMembers, editedAmounts, processLoanInstallments]);
 
@@ -464,29 +506,8 @@ const PayrollDeduction: React.FC = () => {
   const stats = {
     totalMembers: filteredMembers.length,
     activeLoanMembers: filteredMembers.filter(m => m.has_active_loan).length,
-    pendingLoanMembers: filteredMembers.filter(m => m.has_active_loan && !m.loan_already_processed && m.loan_installment > 0).length,
+    pendingLoanMembers: filteredMembers.filter(m => m.has_active_loan && !m.loan_already_processed && (m.total_loan_installment || 0) > 0).length,
     processedMembers: filteredMembers.filter(m => m.already_processed_savings).length,
-  };
-
-  const getSavingTypeStyle = (typeName: string) => {
-    const styles: Record<string, { icon: JSX.Element; color: string; bgColor: string }> = {
-      'Pokok': { 
-        icon: <ShieldCheck size={16} />, 
-        color: 'text-emerald-600', 
-        bgColor: 'bg-emerald-50 dark:bg-emerald-900/20'
-      },
-      'Wajib': { 
-        icon: <Coins size={16} />, 
-        color: 'text-blue-600', 
-        bgColor: 'bg-blue-50 dark:bg-blue-900/20'
-      },
-      'Sukarela': { 
-        icon: <Wallet size={16} />, 
-        color: 'text-purple-600', 
-        bgColor: 'bg-purple-50 dark:bg-purple-900/20'
-      }
-    };
-    return styles[typeName] || { icon: <Wallet size={16} />, color: 'text-gray-600', bgColor: 'bg-gray-50' };
   };
 
   if (isLoading && members.length === 0) {
@@ -501,93 +522,159 @@ const PayrollDeduction: React.FC = () => {
   }
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">💳 Potongan Payroll Simpanan</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <Wallet size={28} className="text-imigrasi-primary" />
+            Potongan Payroll Bulanan
+          </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Kelola potongan gaji untuk simpanan pokok, wajib, dan angsuran pinjaman anggota
+            Kelola potongan gaji bulanan untuk simpanan pokok, wajib, dan angsuran pinjaman
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <div className="bg-emerald-100 text-emerald-700 text-xs px-3 py-1.5 rounded-full flex items-center gap-1">
-              <ShieldCheck size={12} /> Simpanan Pokok (Bayar sekali)
-            </div>
-            <div className="bg-blue-100 text-blue-700 text-xs px-3 py-1.5 rounded-full flex items-center gap-1">
-              <Coins size={12} /> Simpanan Wajib (Bulanan)
-            </div>
-            <div className="bg-amber-100 text-amber-700 text-xs px-3 py-1.5 rounded-full flex items-center gap-1">
-              <HandCoins size={12} /> Angsuran Pinjaman (Otomatis)
-            </div>
-          </div>
         </div>
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setShowHistory(!showHistory)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-neutral-800 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
           >
             <History size={18} />
             {showHistory ? 'Tutup Riwayat' : 'Lihat Riwayat'}
           </button>
           <button 
             onClick={() => { fetchMembers(); fetchHistory(); }}
-            className="p-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl text-gray-500 hover:text-imigrasi-primary transition-colors"
+            className="p-2.5 bg-white dark:bg-neutral-800 border border-gray-200 rounded-xl text-gray-500 hover:text-imigrasi-primary transition-colors"
           >
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
 
-      {/* Debug Info */}
-      {debugInfo && (
-        <div className="bg-gray-100 dark:bg-neutral-800 rounded-xl p-3 text-sm text-gray-600">
-          <Info size={14} className="inline mr-2" />
-          {debugInfo}
-        </div>
-      )}
-
-      {/* Saving Types Info Card */}
-      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-2xl p-5 border border-indigo-100 dark:border-indigo-800/30">
-        <div className="flex items-center gap-2 mb-3">
-          <Settings size={18} className="text-indigo-500" />
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Pengaturan Nilai Potongan dari Database:</span>
-        </div>
-        <div className="flex flex-wrap gap-4">
-          {savingTypes.map(type => (
-            <div key={type.id} className="flex items-center gap-2 bg-white dark:bg-neutral-800 px-4 py-2 rounded-xl shadow-sm border border-gray-100 dark:border-neutral-700">
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">{type.name}:</span>
-              <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                {formatCurrency(type.default_amount)}
-              </span>
+      {/* Info Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-imigrasi-primary to-blue-700 rounded-2xl p-5 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs opacity-80 mb-1">Total Anggota</p>
+              <p className="text-2xl font-bold">{stats.totalMembers}</p>
             </div>
-          ))}
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <Users size={24} />
+            </div>
+          </div>
         </div>
-        <div className="mt-3 text-xs text-gray-500 flex items-center gap-2">
-          <Info size={14} />
-          <span>Simpanan Pokok hanya dipotong sekali sampai mencapai nominal yang ditentukan</span>
+        
+        <div className="bg-gradient-to-br from-imigrasi-primary to-blue-700 rounded-2xl p-5 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs opacity-80 mb-1">Potongan Simpanan</p>
+              <p className="text-xl font-bold">{formatCurrency(totals.totalSavings)}</p>
+              <p className="text-[10px] opacity-70 mt-1">Pokok: {totals.pokokCount} • Wajib: {totals.wajibCount}</p>
+            </div>
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <Coins size={24} />
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-imigrasi-primary to-blue-700 rounded-2xl p-5 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs opacity-80 mb-1">Potongan Angsuran</p>
+              <p className="text-xl font-bold">{formatCurrency(totals.totalLoan)}</p>
+              <p className="text-[10px] opacity-70 mt-1">{totals.loanCount} anggota</p>
+            </div>
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <HandCoins size={24} />
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-gradient-to-br from-imigrasi-primary to-blue-700 rounded-2xl p-5 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs opacity-80 mb-1">TOTAL POTONGAN</p>
+              <p className="text-2xl font-bold">{formatCurrency(totals.totalAll)}</p>
+            </div>
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <TrendingUp size={24} />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Export Section */}
-      <div className="bg-white dark:bg-neutral-800 rounded-2xl p-5 border border-gray-200 dark:border-neutral-700">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-emerald-500/10 rounded-xl">
-              <FileSpreadsheet size={24} className="text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">📊 Ekspor Data Potongan</p>
-              <p className="text-xs text-gray-500">Ekspor data potongan ke file CSV untuk keperluan payroll bank</p>
+      {/* Filter Section */}
+      <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+              <Calendar size={14} />
+              Periode Potongan
+            </label>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:border-imigrasi-primary outline-none"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Menampilkan data untuk {getMonthName(selectedMonth)}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+              <Search size={14} />
+              Cari Anggota
+            </label>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input
+                type="text"
+                placeholder="Cari berdasarkan nama atau NIP..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:border-imigrasi-primary outline-none"
+              />
             </div>
           </div>
-          <button 
-            onClick={handleExportCSV}
-            disabled={isExporting}
-            className="px-6 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-semibold hover:bg-emerald-600 transition-colors flex items-center gap-2 disabled:opacity-50"
-          >
-            {isExporting ? <RefreshCw size={18} className="animate-spin" /> : <Download size={18} />}
-            Ekspor Data CSV
-          </button>
+        </div>
+      </div>
+
+      {/* Process Button Section */}
+      <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-100 rounded-xl">
+              <Settings size={24} className="text-imigrasi-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-700">Proses Potongan Bulanan</p>
+              <p className="text-xs text-gray-500">Proses potongan untuk periode {getMonthName(selectedMonth)}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-xl">
+              <input
+                type="checkbox"
+                id="processLoanInstallments"
+                checked={processLoanInstallments}
+                onChange={(e) => setProcessLoanInstallments(e.target.checked)}
+                className="w-4 h-4 text-imigrasi-primary rounded"
+              />
+              <label htmlFor="processLoanInstallments" className="text-xs text-gray-600 cursor-pointer">
+                Potong angsuran pinjaman
+              </label>
+            </div>
+            <button 
+              onClick={handleProcessPayroll}
+              disabled={isSubmitting}
+              className="px-6 py-2.5 bg-imigrasi-primary text-white rounded-xl text-sm font-semibold hover:bg-blue-800 transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+            >
+              {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
+              Proses Potongan
+            </button>
+          </div>
         </div>
       </div>
 
@@ -600,14 +687,14 @@ const PayrollDeduction: React.FC = () => {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="bg-white dark:bg-neutral-800 rounded-2xl p-6 border border-gray-200 dark:border-neutral-700">
-              <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <History size={20} />
-                📋 Riwayat Potongan Payroll
+            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+              <h3 className="font-bold text-lg text-gray-900 mb-4 flex items-center gap-2">
+                <History size={20} className="text-imigrasi-primary" />
+                Riwayat Potongan Payroll
               </h3>
               {Object.keys(history).length === 0 ? (
                 <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-gray-100 dark:bg-neutral-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Clock size={32} className="text-gray-400" />
                   </div>
                   <p className="text-gray-500">Belum ada riwayat potongan payroll</p>
@@ -615,32 +702,24 @@ const PayrollDeduction: React.FC = () => {
               ) : (
                 <div className="space-y-6 max-h-96 overflow-y-auto">
                   {Object.entries(history).map(([month, data]: [string, any]) => (
-                    <div key={month} className="border-b border-gray-100 dark:border-neutral-700 pb-4 last:border-0">
+                    <div key={month} className="border-b border-gray-100 pb-4 last:border-0">
                       <h4 className="font-bold text-imigrasi-primary mb-3 flex items-center gap-2">
                         <Calendar size={16} />
-                        📅 {data.name || month}
+                        {data.name || month}
                       </h4>
                       <div className="space-y-2">
                         {data.items?.slice(0, 10).map((item: PayrollHistoryItem, idx: number) => (
-                          <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-neutral-700/30 rounded-xl hover:bg-gray-100 transition-colors">
+                          <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                             <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-white">{item.user_name}</p>
+                              <p className="text-sm font-medium text-gray-900">{item.user_name}</p>
                               <p className="text-xs text-gray-500 mt-0.5">NIP: {item.user_nip}</p>
-                              <p className="text-xs text-gray-500">{item.saving_type}</p>
                             </div>
                             <div className="text-right">
-                              <p className="text-sm font-bold text-emerald-600">
-                                {formatCurrency(item.amount)}
-                              </p>
-                              <p className="text-[10px] text-gray-400">
-                                {formatDate(item.date)}
-                              </p>
+                              <p className="text-sm font-bold text-emerald-600">{formatCurrency(item.amount)}</p>
+                              <p className="text-[10px] text-gray-400">{formatDate(item.date)}</p>
                             </div>
                           </div>
                         ))}
-                        {data.items?.length > 10 && (
-                          <p className="text-xs text-center text-gray-400">... dan {data.items.length - 10} lainnya</p>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -651,140 +730,43 @@ const PayrollDeduction: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Month Selector & Process */}
-      <div className="bg-white dark:bg-neutral-800 rounded-2xl p-6 border border-gray-200 dark:border-neutral-700">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-imigrasi-primary/10 rounded-xl">
-              <Calendar size={24} className="text-imigrasi-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">📅 Periode Potongan</p>
-              <p className="text-xs text-gray-500">Pilih bulan dan tahun untuk potongan payroll</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-4 py-2.5 bg-gray-50 dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-xl focus:border-imigrasi-primary outline-none dark:text-white"
-            />
-            <button 
-              onClick={handleProcessPayroll}
-              disabled={isSubmitting}
-              className="px-6 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-semibold hover:bg-emerald-600 transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
-              {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
-              Proses Potongan
-            </button>
-          </div>
-        </div>
-        
-        {/* Checkbox for loan installments */}
-        <div className="mt-5 flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-          <input
-            type="checkbox"
-            id="processLoanInstallments"
-            checked={processLoanInstallments}
-            onChange={(e) => setProcessLoanInstallments(e.target.checked)}
-            className="w-4 h-4 text-imigrasi-primary rounded focus:ring-imigrasi-primary"
-          />
-          <label htmlFor="processLoanInstallments" className="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-2 cursor-pointer">
-            <HandCoins size={16} />
-            Potong otomatis angsuran pinjaman anggota yang aktif
-          </label>
-        </div>
-      </div>
-
-      {/* Stats Summary - TOTAL POTONGAN */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="glass-card p-6 rounded-2xl bg-neutral-700 border-2">
-          <p className="text-xs opacity-80 mb-1">👥 Total Anggota</p>
-          <p className="text-2xl font-bold">{stats.totalMembers}</p>
-        </div>
-        <div className="glass-card p-6 rounded-2xl bg-neutral-700 border-2">
-          <p className="text-xs opacity-80 mb-1">💰 Potongan Simpanan</p>
-          <p className="text-lg font-bold">{formatCurrency(totals.totalSavings)}</p>
-          <div className="text-[10px] opacity-80 mt-1">
-            Pokok: {formatCurrency(totals.pokokTotal)} • Wajib: {formatCurrency(totals.wajibTotal)}
-          </div>
-        </div>
-        <div className="glass-card p-6 rounded-2xl bg-neutral-700 border-2">
-          <p className="text-xs opacity-80 mb-1">🏦 Potongan Angsuran</p>
-          <p className="text-lg font-bold">{formatCurrency(totals.totalLoan)}</p>
-          <p className="text-[10px] opacity-80 mt-1">{totals.loanCount} anggota</p>
-        </div>
-        <div className="glass-card p-6 rounded-2xl bg-neutral-700 border-2">
-          <p className="text-xs opacity-80 mb-1">💰 TOTAL KESELURUHAN</p>
-          <p className="text-2xl font-bold">{formatCurrency(totals.totalAll)}</p>
-        </div>
-      </div>
-
-      {/* Additional Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-neutral-800 rounded-xl p-3 text-center border border-gray-200 dark:border-neutral-700">
-          <p className="text-xs text-gray-500">🔄 Sudah Diproses</p>
-          <p className="text-lg font-bold text-blue-600">{stats.processedMembers}</p>
-        </div>
-        <div className="bg-white dark:bg-neutral-800 rounded-xl p-3 text-center border border-gray-200 dark:border-neutral-700">
-          <p className="text-xs text-gray-500">🏦 Pinjaman Aktif</p>
-          <p className="text-lg font-bold text-amber-600">{stats.activeLoanMembers}</p>
-        </div>
-        <div className="bg-white dark:bg-neutral-800 rounded-xl p-3 text-center border border-gray-200 dark:border-neutral-700">
-          <p className="text-xs text-gray-500">📅 Periode</p>
-          <p className="text-sm font-bold text-gray-700">{getMonthName(selectedMonth)}</p>
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-        <input
-          type="text"
-          placeholder="Cari berdasarkan nama, NIP, atau unit kerja..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-11 pr-4 py-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl focus:border-imigrasi-primary outline-none transition-colors dark:text-white"
-        />
-      </div>
-
       {/* Members List */}
       <div className="space-y-4">
         {filteredMembers.length === 0 ? (
-          <div className="bg-white dark:bg-neutral-800 rounded-2xl p-12 text-center border border-gray-200 dark:border-neutral-700">
-            <div className="w-20 h-20 bg-gray-100 dark:bg-neutral-700 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <Users size={40} className="text-gray-400" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">Tidak Ada Data Anggota</h3>
+            <h3 className="text-lg font-bold text-gray-900">Tidak Ada Data Anggota</h3>
             <p className="text-sm text-gray-500 mt-2">
-              {searchTerm ? 'Tidak ditemukan anggota yang sesuai dengan pencarian.' : 'Belum ada anggota yang terdaftar.'}
+              {searchTerm ? 'Tidak ditemukan anggota yang sesuai.' : 'Belum ada anggota yang terdaftar.'}
             </p>
           </div>
         ) : (
           filteredMembers.map((member) => {
             const isExpanded = expandedMembers.has(member.id);
             const memberSavingsTotal = getMemberTotal(member);
-            const hasLoanDeduction = member.has_active_loan && processLoanInstallments && !member.loan_already_processed && member.loan_installment > 0;
-            const memberTotalWithLoan = memberSavingsTotal + (hasLoanDeduction ? member.loan_installment : 0);
+            const memberLoanTotal = getMemberLoanTotal(member);
+            const hasLoanDeduction = member.has_active_loan && processLoanInstallments && !member.loan_already_processed && memberLoanTotal > 0;
+            const memberTotalWithLoan = memberSavingsTotal + (hasLoanDeduction ? memberLoanTotal : 0);
+            const memberLoans = getMemberLoansList(member);
+            const loanCount = memberLoans.length;
             
             return (
-              <div key={member.id} className="bg-white dark:bg-neutral-800 rounded-2xl border border-gray-200 dark:border-neutral-700 overflow-hidden">
+              <div key={member.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                 {/* Member Header */}
                 <div 
-                  className="p-5 cursor-pointer hover:bg-gray-50 dark:hover:bg-neutral-700/50 transition-colors"
+                  className="p-5 cursor-pointer hover:bg-gray-50 transition-colors"
                   onClick={() => toggleMemberExpand(member.id)}
                 >
                   <div className="flex items-start justify-between flex-wrap gap-4">
                     <div className="flex items-center gap-4">
-                      <img 
-                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${member.name}`} 
-                        alt="" 
-                        className="w-14 h-14 rounded-full border-2 border-gray-200 dark:border-neutral-600" 
-                      />
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-imigrasi-primary to-blue-600 flex items-center justify-center text-white font-bold text-lg">
+                        {member.name.charAt(0).toUpperCase()}
+                      </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-bold text-gray-900 dark:text-white">{member.name}</h4>
+                          <h4 className="font-bold text-gray-900">{member.name}</h4>
                           {member.already_processed_savings && (
                             <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                               <CheckCircle2 size={10} /> Sudah Diproses
@@ -792,23 +774,22 @@ const PayrollDeduction: React.FC = () => {
                           )}
                           {member.has_active_loan && (
                             <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <HandCoins size={10} /> Pinjaman Aktif
+                              <HandCoins size={10} /> {loanCount > 1 ? `${loanCount} Pinjaman Aktif` : 'Pinjaman Aktif'}
                             </span>
                           )}
                         </div>
                         <div className="flex gap-4 mt-1.5 text-xs text-gray-500">
                           <span>🆔 NIP: {member.nip}</span>
                           <span>🏢 Unit: {member.unit}</span>
-                          <span>📅 Bergabung: {formatDate(member.join_date)}</span>
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm text-gray-500">Total Potongan</div>
+                      <div className="text-sm text-gray-500">Total Potongan Bulan Ini</div>
                       <div className="text-xl font-bold text-emerald-600">{formatCurrency(memberTotalWithLoan)}</div>
-                      {memberSavingsTotal > 0 && member.loan_installment > 0 && hasLoanDeduction && (
-                        <div className="text-xs text-gray-400 mt-1">
-                          Simpanan: {formatCurrency(memberSavingsTotal)} + Angsuran: {formatCurrency(member.loan_installment)}
+                      {memberLoanTotal > 0 && (
+                        <div className="text-[10px] text-amber-600">
+                          Angsuran: {formatCurrency(memberLoanTotal)}
                         </div>
                       )}
                     </div>
@@ -825,38 +806,25 @@ const PayrollDeduction: React.FC = () => {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="border-t border-gray-100 dark:border-neutral-700"
+                      className="border-t border-gray-100"
                     >
-                      <div className="p-5 bg-gray-50 dark:bg-neutral-700/30">
+                      <div className="p-5 bg-gray-50">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                           {member.savings.map((saving) => {
                             if (!saving.is_applicable) return null;
                             
-                            const style = getSavingTypeStyle(saving.type_name);
                             const isDisabled = saving.is_processed;
                             const currentAmount = editedAmounts[member.id]?.[saving.type_id] ?? 0;
                             
-                            let statusInfo = null;
-                            if (saving.type_name === 'Pokok' && saving.current_balance >= saving.default_amount) {
-                              statusInfo = { text: '✓ Lunas', color: 'text-green-600' };
-                            } else if (saving.is_processed) {
-                              statusInfo = { text: '✓ Sudah Diproses', color: 'text-blue-600' };
-                            } else if (saving.remaining_to_pay > 0 && saving.remaining_to_pay < saving.default_amount) {
-                              statusInfo = { text: `Sisa: ${formatCurrency(saving.remaining_to_pay)}`, color: 'text-amber-600' };
-                            }
-                            
                             return (
-                              <div key={saving.type_id} className={`${style.bgColor} rounded-xl p-4`}>
+                              <div key={saving.type_id} className="bg-white rounded-xl p-4 border border-gray-200">
                                 <div className="flex justify-between items-start mb-3">
-                                  <div className="flex items-center gap-2">
-                                    {style.icon}
-                                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                      Simpanan {saving.type_name}
-                                    </label>
-                                  </div>
-                                  {statusInfo && (
-                                    <span className={`text-[10px] ${statusInfo.color} font-medium`}>
-                                      {statusInfo.text}
+                                  <label className="text-sm font-semibold text-gray-700">
+                                    Simpanan {saving.type_name}
+                                  </label>
+                                  {saving.is_processed && (
+                                    <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                      ✓ Sudah Diproses
                                     </span>
                                   )}
                                 </div>
@@ -868,7 +836,7 @@ const PayrollDeduction: React.FC = () => {
                                     value={currentAmount}
                                     onChange={(e) => handleAmountChange(member.id, saving.type_id, e.target.value)}
                                     disabled={isDisabled}
-                                    className={`w-full pl-10 pr-3 py-2.5 bg-white dark:bg-neutral-700 border rounded-lg outline-none transition-all dark:text-white ${
+                                    className={`w-full pl-10 pr-3 py-2.5 bg-gray-50 border rounded-lg outline-none transition-all ${
                                       isDisabled 
                                         ? 'border-gray-200 opacity-60 cursor-not-allowed' 
                                         : 'border-gray-300 focus:border-imigrasi-primary'
@@ -878,80 +846,68 @@ const PayrollDeduction: React.FC = () => {
                                 </div>
                                 
                                 <div className="flex justify-between text-xs">
-                                  <span className="text-gray-500">💵 Saldo saat ini:</span>
-                                  <span className="font-medium text-gray-700 dark:text-gray-300">
-                                    {formatCurrency(saving.current_balance)}
-                                  </span>
+                                  <span className="text-gray-500">Saldo saat ini:</span>
+                                  <span className="font-medium">{formatCurrency(saving.current_balance)}</span>
                                 </div>
                                 
-                                {!isDisabled && saving.default_amount > 0 && (
-                                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-neutral-600">
-                                    <div className="flex justify-between text-[11px]">
-                                      <span className="text-gray-400">Nilai default:</span>
-                                      <span className="text-emerald-600 font-medium">
-                                        {formatCurrency(saving.default_amount)}
-                                      </span>
-                                    </div>
-                                    {saving.type_name === 'Pokok' && saving.default_amount > 0 && (
-                                      <div className="flex justify-between text-[11px] mt-1">
-                                        <span className="text-gray-400">Target:</span>
-                                        <span className="text-amber-600 font-medium">
-                                          {formatCurrency(saving.default_amount)}
-                                        </span>
-                                      </div>
-                                    )}
+                                {saving.type_name === 'Pokok' && saving.remaining_to_pay > 0 && (
+                                  <div className="mt-2 text-[10px] text-orange-500">
+                                    Sisa yang harus dibayar: {formatCurrency(saving.remaining_to_pay)}
                                   </div>
                                 )}
                               </div>
                             );
                           })}
                           
-                          {/* Loan Deduction Card */}
-                          {member.has_active_loan && (
-                            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4">
+                          {/* Loan Deduction Card - Tampilkan semua pinjaman aktif */}
+                          {member.has_active_loan && memberLoans.length > 0 && (
+                            <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
                               <div className="flex items-center gap-2 mb-3">
                                 <HandCoins size={18} className="text-amber-600" />
-                                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                  Angsuran Pinjaman
+                                <label className="text-sm font-semibold text-gray-700">
+                                  Angsuran Pinjaman {memberLoans.length > 1 ? `(${memberLoans.length} pinjaman)` : ''}
                                 </label>
-                                {member.loan_already_processed && (
-                                  <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full ml-auto">
-                                    ✓ Sudah Dipotong
-                                  </span>
-                                )}
                               </div>
                               
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="text-gray-500">💰 Angsuran per bulan:</span>
-                                  <span className="font-bold text-amber-700 dark:text-amber-400">
-                                    {formatCurrencyDecimal(member.loan_installment)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-500">📊 Sisa pinjaman:</span>
-                                  <span className="font-medium text-gray-700 dark:text-gray-300">
-                                    {formatCurrencyDecimal(member.loan_remaining)}
-                                  </span>
-                                </div>
-                                {!member.loan_already_processed && processLoanInstallments && member.loan_installment > 0 && (
-                                  <div className="mt-3 pt-2 border-t border-amber-200 dark:border-amber-800/30">
+                              <div className="space-y-3">
+                                {memberLoans.map((loan, idx) => {
+                                  const paidCount = loan.installments_paid || 0;
+                                  const remainingInstallments = loan.tenor_months - paidCount;
+                                  return (
+                                    <div key={loan.id} className="border-b border-amber-100 pb-2 last:border-0">
+                                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                        <span>Pinjaman #{idx + 1}</span>
+                                        <span>Angsuran ke-{paidCount + 1} / {loan.tenor_months}</span>
+                                      </div>
+                                      <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">Angsuran per bulan:</span>
+                                        <span className="font-bold text-amber-700">{formatCurrencyDecimal(loan.monthly_installment)}</span>
+                                      </div>
+                                      <div className="flex justify-between text-xs mt-1">
+                                        <span className="text-gray-500">Sisa pinjaman:</span>
+                                        <span className="font-medium">{formatCurrencyDecimal(loan.remaining_balance)}</span>
+                                      </div>
+                                      {remainingInstallments > 0 && (
+                                        <div className="text-[10px] text-gray-400 mt-1">
+                                          Sisa {remainingInstallments} bulan lagi
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                                
+                                {!member.loan_already_processed && processLoanInstallments && memberLoanTotal > 0 && (
+                                  <div className="mt-3 pt-2 border-t border-amber-200">
                                     <div className="flex justify-between text-emerald-600 font-semibold">
-                                      <span>Akan dipotong:</span>
-                                      <span>{formatCurrencyDecimal(member.loan_installment)}</span>
+                                      <span>Total akan dipotong:</span>
+                                      <span>{formatCurrencyDecimal(memberLoanTotal)}</span>
                                     </div>
                                   </div>
                                 )}
+                                
                                 {member.loan_already_processed && (
-                                  <div className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                                    <CheckCircle2 size={12} />
-                                    Angsuran bulan ini sudah dipotong
-                                  </div>
-                                )}
-                                {!processLoanInstallments && !member.loan_already_processed && member.loan_installment > 0 && (
-                                  <div className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                                    <AlertCircle size={12} />
-                                    Potongan angsuran dinonaktifkan
+                                  <div className="mt-2 text-xs text-green-600 bg-green-50 p-2 rounded-lg">
+                                    ✓ Angsuran bulan ini sudah diproses
                                   </div>
                                 )}
                               </div>
@@ -966,11 +922,6 @@ const PayrollDeduction: React.FC = () => {
             );
           })
         )}
-      </div>
-      
-      {/* Footer Info */}
-      <div className="bg-gray-50 dark:bg-neutral-800/50 rounded-xl p-4 text-center text-xs text-gray-500">
-        <p>💡 Informasi: Simpanan Pokok hanya dipotong sekali sampai mencapai nominal yang ditentukan. Simpanan Wajib dipotong setiap bulan. Angsuran pinjaman akan dipotong otomatis jika anggota memiliki pinjaman aktif.</p>
       </div>
     </motion.div>
   );
