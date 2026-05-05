@@ -1,5 +1,4 @@
 <?php
-// app/Models/WithdrawalRequest.php
 
 namespace App\Models;
 
@@ -12,7 +11,6 @@ class WithdrawalRequest extends Model
     
     protected $fillable = [
         'user_id',
-        'saving_id',
         'saving_type',
         'amount',
         'reason',
@@ -28,24 +26,20 @@ class WithdrawalRequest extends Model
         'chairman_notes',
         'disbursed_by',
         'disbursed_at',
-        'disbursement_notes'
+        'disbursement_notes',
+        'rejection_reason'
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'treasurer_approved_at' => 'datetime',
         'chairman_approved_at' => 'datetime',
-        'disbursed_at' => 'datetime'
+        'disbursed_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
-    }
-
-    public function relatedSaving(): BelongsTo
-    {
-        return $this->belongsTo(Saving::class, 'saving_id');
     }
 
     public function treasurerApprover(): BelongsTo

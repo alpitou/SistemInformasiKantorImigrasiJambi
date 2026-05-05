@@ -1,7 +1,7 @@
 // src/pages/member/Savings.tsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
+import {
   Wallet, TrendingUp, PieChart, ArrowUpRight, ArrowDownRight,
   Download, Info, Calendar, RefreshCw, X, CheckCircle2,
   AlertCircle, Upload, FileText, Trash2, Clock, FileSpreadsheet,
@@ -53,7 +53,7 @@ const Savings: React.FC = () => {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDownloadingRekening, setIsDownloadingRekening] = useState(false);
-  
+
   const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawReason, setWithdrawReason] = useState('');
@@ -63,12 +63,12 @@ const Savings: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
-  
+
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [summary, setSummary] = useState<SavingsSummary>({
     Pokok: 0,
     Wajib: 0,
@@ -79,7 +79,7 @@ const Savings: React.FC = () => {
   const [savingTypes, setSavingTypes] = useState<SavingType[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingDeposits, setPendingDeposits] = useState(0);
-  
+
   // Bank account info
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
@@ -100,22 +100,22 @@ const Savings: React.FC = () => {
   const fetchUserProfile = useCallback(async () => {
     const userId = user?.id;
     if (!userId) return;
-    
+
     setIsLoadingProfile(true);
     try {
       const response = await api.get(`/users/${userId}`);
-      
+
       if (response.data.success) {
         const userProfile = response.data.data;
-        
+
         const bankNameValue = userProfile.bank_name || '';
         const accountNumberValue = userProfile.account_number || '';
         const accountNameValue = userProfile.account_name || userProfile.name || '';
-        
+
         setBankName(bankNameValue);
         setAccountNumber(accountNumberValue);
         setAccountName(accountNameValue);
-        
+
         if (bankNameValue) localStorage.setItem('user_bank_name', bankNameValue);
         if (accountNumberValue) localStorage.setItem('user_account_number', accountNumberValue);
         if (accountNameValue) localStorage.setItem('user_account_name', accountNameValue);
@@ -149,13 +149,13 @@ const Savings: React.FC = () => {
     setLoading(true);
     try {
       const userId = user?.id || 1;
-      
+
       const [transactionsRes, typesRes, summaryRes] = await Promise.all([
         api.get('/savings'),
         api.get('/saving-types'),
         api.get(`/savings/summary/${userId}`)
       ]);
-      
+
       if (transactionsRes.data.success) {
         const transactionsData = transactionsRes.data.data;
         setTransactions(transactionsData);
@@ -164,18 +164,18 @@ const Savings: React.FC = () => {
         ).length;
         setPendingDeposits(pending);
       }
-      
+
       if (typesRes.data.success) {
         setSavingTypes(typesRes.data.data);
       }
-      
+
       if (summaryRes.data.success) {
         setSummary(summaryRes.data.data);
       }
-      
+
       await fetchUserProfile();
       await fetchWithdrawalRequests();
-      
+
     } catch (error: any) {
       console.error('Error fetching savings data:', error);
       addNotification({
@@ -282,18 +282,18 @@ const Savings: React.FC = () => {
       });
       return;
     }
-    
+
     setIsSubmitting(true);
-    
+
     try {
       const proofPath = await uploadFile();
-      
+
       if (!proofPath) {
         throw new Error('Gagal mengupload bukti transfer');
       }
-      
+
       const userId = user?.id || 1;
-      
+
       await api.post('/savings', {
         user_id: userId,
         saving_type_id: selectedSavingType,
@@ -303,22 +303,22 @@ const Savings: React.FC = () => {
         transaction_date: new Date().toISOString().split('T')[0],
         proof_image: proofPath
       });
-      
+
       await fetchData();
-      
+
       addNotification({
         title: 'Setoran Diajukan',
         message: `Setoran simpanan sukarela sebesar ${formatCurrency(Number(depositAmount))} telah diajukan dan menunggu verifikasi bendahara.`,
         type: 'success'
       });
-      
+
       setShowDepositModal(false);
       setDepositAmount('');
       setUploadedFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-      
+
     } catch (error: any) {
       console.error('Deposit error:', error);
       addNotification({
@@ -333,7 +333,7 @@ const Savings: React.FC = () => {
 
   // Get available balance for withdrawal based on selected type
   const getAvailableBalance = () => {
-    switch(selectedWithdrawType) {
+    switch (selectedWithdrawType) {
       case 'Pokok': return summary?.Pokok || 0;
       case 'Wajib': return summary?.Wajib || 0;
       case 'Sukarela': return summary?.Sukarela || 0;
@@ -341,100 +341,103 @@ const Savings: React.FC = () => {
     }
   };
 
-  // src/pages/member/Savings.tsx - Update handleWithdraw function
-
   const handleWithdraw = async () => {
-      let amountToWithdraw = Number(withdrawAmount);
-      const availableBalance = getAvailableBalance();
-      
-      if (withdrawType === 'full') {
-          amountToWithdraw = availableBalance;
+    let amountToWithdraw = Number(withdrawAmount);
+    const availableBalance = getAvailableBalance();
+
+    if (withdrawType === 'full') {
+      amountToWithdraw = availableBalance;
+    }
+
+    if (amountToWithdraw <= 0) {
+      addNotification({
+        title: 'Validasi Gagal',
+        message: 'Silakan masukkan jumlah penarikan yang valid.',
+        type: 'error'
+      });
+      return;
+    }
+
+    if (amountToWithdraw > availableBalance) {
+      addNotification({
+        title: 'Validasi Gagal',
+        message: `Jumlah penarikan melebihi saldo ${selectedWithdrawType} yang tersedia (${formatCurrency(availableBalance)}).`,
+        type: 'error'
+      });
+      return;
+    }
+
+    if (!withdrawReason) {
+      addNotification({
+        title: 'Validasi Gagal',
+        message: 'Silakan isi alasan penarikan.',
+        type: 'error'
+      });
+      return;
+    }
+
+    if (!bankName || !accountNumber || !accountName) {
+      addNotification({
+        title: 'Validasi Gagal',
+        message: 'Silakan lengkapi data rekening bank tujuan transfer di halaman Profil terlebih dahulu.',
+        type: 'error'
+      });
+      return;
+    }
+
+    setIsWithdrawing(true);
+
+    try {
+      const response = await api.post('/withdrawals', {
+        amount: amountToWithdraw,
+        reason: withdrawReason,
+        saving_type: selectedWithdrawType,
+        bank_name: bankName,
+        account_number: accountNumber,
+        account_name: accountName
+      });
+
+      if (response.data.success) {
+        addNotification({
+          title: 'Pengajuan Penarikan Dikirim',
+          message: response.data.message || `Pengajuan penarikan sebesar ${formatCurrency(amountToWithdraw)} dari Simpanan ${selectedWithdrawType} telah dikirim.`,
+          type: 'success'
+        });
+
+        setShowWithdrawModal(false);
+        setWithdrawAmount('');
+        setWithdrawReason('');
+        setWithdrawType('partial');
+        setSelectedWithdrawType('Sukarela');
+
+        // Refresh data
+        await fetchData();
+        await fetchWithdrawalRequests();
+      } else {
+        throw new Error(response.data.message || 'Gagal mengajukan penarikan');
       }
-      
-      if (amountToWithdraw <= 0) {
-          addNotification({
-              title: 'Validasi Gagal',
-              message: 'Silakan masukkan jumlah penarikan yang valid.',
-              type: 'error'
-          });
-          return;
-      }
-      
-      if (amountToWithdraw > availableBalance) {
-          addNotification({
-              title: 'Validasi Gagal',
-              message: `Jumlah penarikan melebihi saldo ${selectedWithdrawType} yang tersedia (${formatCurrency(availableBalance)}).`,
-              type: 'error'
-          });
-          return;
-      }
-      
-      if (!withdrawReason) {
-          addNotification({
-              title: 'Validasi Gagal',
-              message: 'Silakan isi alasan penarikan.',
-              type: 'error'
-          });
-          return;
-      }
-      
-      if (!bankName || !accountNumber || !accountName) {
-          addNotification({
-              title: 'Validasi Gagal',
-              message: 'Silakan lengkapi data rekening bank tujuan transfer di halaman Profil terlebih dahulu.',
-              type: 'error'
-          });
-          return;
-      }
-      
-      setIsWithdrawing(true);
-      
-      try {
-          const response = await api.post('/withdrawals', {
-              amount: amountToWithdraw,
-              reason: withdrawReason,
-              saving_type: selectedWithdrawType,
-              bank_name: bankName,
-              account_number: accountNumber,
-              account_name: accountName
-          });
-          
-          if (response.data.success) {
-              addNotification({
-                  title: 'Pengajuan Penarikan Dikirim',
-                  message: `Pengajuan penarikan sebesar ${formatCurrency(amountToWithdraw)} dari Simpanan ${selectedWithdrawType} telah dikirim. Menunggu persetujuan bendahara.`,
-                  type: 'success'
-              });
-              
-              setShowWithdrawModal(false);
-              setWithdrawAmount('');
-              setWithdrawReason('');
-              setWithdrawType('partial');
-              await fetchData();
-              await fetchWithdrawalRequests();
-          }
-      } catch (error: any) {
-          console.error('Withdraw error:', error);
-          addNotification({
-              title: 'Pengajuan Gagal',
-              message: error.response?.data?.message || 'Terjadi kesalahan saat mengajukan penarikan.',
-              type: 'error'
-          });
-      } finally {
-          setIsWithdrawing(false);
-      }
+    } catch (error: any) {
+      console.error('Withdraw error:', error);
+      addNotification({
+        title: 'Pengajuan Gagal',
+        message: error.response?.data?.message || error.message || 'Terjadi kesalahan saat mengajukan penarikan.',
+        type: 'error'
+      });
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
   const handleDownloadReport = async () => {
     setIsDownloading(true);
     try {
       const userId = user?.id || 1;
-      
+
       const response = await api.get('/savings/report/download', {
         params: { user_id: userId },
         responseType: 'blob'
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -443,7 +446,7 @@ const Savings: React.FC = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       addNotification({
         title: 'Download Berhasil',
         message: 'Laporan simpanan berhasil diunduh.',
@@ -466,12 +469,12 @@ const Savings: React.FC = () => {
     try {
       const userId = user?.id || 1;
       const monthName = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).toUpperCase();
-      
+
       const response = await api.get(`/report/rekening-koran/${userId}`, {
         params: { month: monthName },
         responseType: 'blob'
       });
-      
+
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -481,7 +484,7 @@ const Savings: React.FC = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       addNotification({
         title: 'Berhasil',
         message: 'Rekening Koran berhasil diunduh.',
@@ -541,7 +544,7 @@ const Savings: React.FC = () => {
   }
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="space-y-8"
@@ -550,7 +553,7 @@ const Savings: React.FC = () => {
       <AnimatePresence>
         {showDepositModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -561,7 +564,7 @@ const Savings: React.FC = () => {
                 setDepositAmount('');
               }}
             />
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -569,12 +572,12 @@ const Savings: React.FC = () => {
             >
               <div className="p-5 border-b border-gray-100 dark:border-neutral-700 flex items-center justify-between bg-emerald-500 text-white">
                 <h3 className="font-bold text-lg">Setor Simpanan Sukarela</h3>
-                <button 
+                <button
                   onClick={() => {
                     setShowDepositModal(false);
                     setUploadedFile(null);
                     setDepositAmount('');
-                  }} 
+                  }}
                   className="p-1 hover:bg-white/10 rounded-full transition-colors"
                 >
                   <X size={18} />
@@ -585,19 +588,19 @@ const Savings: React.FC = () => {
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Jumlah Setoran (IDR)</label>
                   <div className="relative mt-1">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">Rp</span>
-                    <input 
-                      type="number" 
-                      placeholder="Contoh: 100000" 
+                    <input
+                      type="number"
+                      placeholder="Contoh: 100000"
                       value={depositAmount}
                       onChange={(e) => setDepositAmount(e.target.value)}
                       className="w-full pl-12 pr-3 py-2 bg-gray-50 dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-lg focus:border-imigrasi-accent outline-none transition-all dark:text-white"
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Upload Bukti Transfer</label>
-                  
+
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -605,9 +608,9 @@ const Savings: React.FC = () => {
                     onChange={handleFileSelect}
                     className="hidden"
                   />
-                  
+
                   {!uploadedFile ? (
-                    <div 
+                    <div
                       onClick={() => fileInputRef.current?.click()}
                       className={cn(
                         "mt-1 w-full p-6 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer transition-all",
@@ -647,14 +650,14 @@ const Savings: React.FC = () => {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                   <p className="text-xs text-blue-700 dark:text-blue-400">
                     * Setoran simpanan sukarela memerlukan verifikasi manual oleh bendahara setelah bukti transfer diunggah.
                   </p>
                 </div>
-                
-                <button 
+
+                <button
                   onClick={handleDeposit}
                   disabled={isSubmitting || !depositAmount || !uploadedFile || isUploading}
                   className="w-full py-2 bg-imigrasi-primary text-white font-bold rounded-lg hover:bg-blue-900 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
@@ -672,14 +675,14 @@ const Savings: React.FC = () => {
       <AnimatePresence>
         {showWithdrawModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setShowWithdrawModal(false)}
             />
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -691,7 +694,7 @@ const Savings: React.FC = () => {
                   <X size={18} />
                 </button>
               </div>
-              
+
               <div className="p-5 space-y-5">
                 {/* Informasi Saldo */}
                 <div className="p-3 bg-gray-50 dark:bg-neutral-700/30 rounded-lg">
@@ -723,33 +726,30 @@ const Savings: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setSelectedWithdrawType('Pokok')}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        selectedWithdrawType === 'Pokok'
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${selectedWithdrawType === 'Pokok'
                           ? 'bg-blue-600 text-white'
                           : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-                      }`}
+                        }`}
                     >
                       Pokok
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedWithdrawType('Wajib')}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        selectedWithdrawType === 'Wajib'
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${selectedWithdrawType === 'Wajib'
                           ? 'bg-emerald-600 text-white'
                           : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-                      }`}
+                        }`}
                     >
                       Wajib
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedWithdrawType('Sukarela')}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        selectedWithdrawType === 'Sukarela'
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${selectedWithdrawType === 'Sukarela'
                           ? 'bg-amber-600 text-white'
                           : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-                      }`}
+                        }`}
                     >
                       Sukarela
                     </button>
@@ -766,22 +766,20 @@ const Savings: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setWithdrawType('partial')}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        withdrawType === 'partial'
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${withdrawType === 'partial'
                           ? 'bg-amber-500 text-white'
                           : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-                      }`}
+                        }`}
                     >
                       Sebagian
                     </button>
                     <button
                       type="button"
                       onClick={() => setWithdrawType('full')}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        withdrawType === 'full'
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${withdrawType === 'full'
                           ? 'bg-amber-500 text-white'
                           : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-                      }`}
+                        }`}
                     >
                       Seluruh Saldo
                     </button>
@@ -794,9 +792,9 @@ const Savings: React.FC = () => {
                     <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Jumlah Penarikan (IDR)</label>
                     <div className="relative mt-1">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">Rp</span>
-                      <input 
-                        type="number" 
-                        placeholder="Contoh: 50000" 
+                      <input
+                        type="number"
+                        placeholder="Contoh: 50000"
                         value={withdrawAmount}
                         onChange={(e) => setWithdrawAmount(e.target.value)}
                         className="w-full pl-12 pr-3 py-2 bg-gray-50 dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-lg focus:border-amber-500 outline-none"
@@ -843,13 +841,13 @@ const Savings: React.FC = () => {
                     <Building2 size={14} className="text-amber-500" />
                     Informasi Rekening Tujuan Transfer
                   </h4>
-                  
+
                   {(!bankName && !accountNumber && !accountName) && !isLoadingProfile && (
                     <div className="p-2 bg-yellow-50 rounded-lg text-xs text-yellow-700 mb-3">
                       Data rekening belum diisi. Silakan lengkapi data rekening di halaman Profil terlebih dahulu.
                     </div>
                   )}
-                  
+
                   <div className="space-y-2">
                     <div>
                       <label className="text-xs font-bold text-gray-500">Nama Bank</label>
@@ -864,7 +862,7 @@ const Savings: React.FC = () => {
                         />
                       </div>
                     </div>
-                    
+
                     <div>
                       <label className="text-xs font-bold text-gray-500">Nomor Rekening</label>
                       <div className="relative mt-1">
@@ -878,7 +876,7 @@ const Savings: React.FC = () => {
                         />
                       </div>
                     </div>
-                    
+
                     <div>
                       <label className="text-xs font-bold text-gray-500">Nama Pemilik Rekening</label>
                       <div className="relative mt-1">
@@ -902,7 +900,7 @@ const Savings: React.FC = () => {
                     Proses ini memerlukan waktu 1x24 jam kerja setelah disetujui.
                   </p>
                 </div>
-                
+
                 {/* Pending Withdrawals Info */}
                 {pendingWithdrawals.length > 0 && (
                   <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
@@ -912,8 +910,8 @@ const Savings: React.FC = () => {
                     </p>
                   </div>
                 )}
-                
-                <button 
+
+                <button
                   onClick={handleWithdraw}
                   disabled={isWithdrawing || (withdrawType === 'partial' && (!withdrawAmount || Number(withdrawAmount) <= 0)) || (withdrawType === 'full' && getAvailableBalance() <= 0) || !withdrawReason || !bankName || !accountNumber || !accountName}
                   className="w-full py-2 bg-amber-500 text-white font-bold rounded-lg hover:bg-amber-600 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
@@ -950,13 +948,13 @@ const Savings: React.FC = () => {
               </span>
             </div>
           )}
-          <button 
+          <button
             onClick={handleRefresh}
             className="p-2 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg text-gray-500 hover:text-imigrasi-primary transition-colors"
           >
             <RefreshCw size={18} />
           </button>
-          <button 
+          <button
             onClick={handleDownloadRekeningKoran}
             disabled={isDownloadingRekening}
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition-colors disabled:opacity-70"
@@ -964,7 +962,7 @@ const Savings: React.FC = () => {
             {isDownloadingRekening ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
             Rekening Koran
           </button>
-          <button 
+          <button
             onClick={handleDownloadReport}
             disabled={isDownloading}
             className="flex items-center gap-2 px-4 py-2 bg-imigrasi-primary text-white rounded-lg text-sm font-bold hover:bg-blue-900 transition-colors disabled:opacity-70"
@@ -989,13 +987,13 @@ const Savings: React.FC = () => {
             </div>
           </div>
           <div className="flex gap-3">
-            <button 
+            <button
               onClick={() => setShowWithdrawModal(true)}
               className="px-5 py-2 bg-white text-imigrasi-primary font-bold rounded-lg hover:bg-imigrasi-accent transition-colors text-sm"
             >
               Tarik Simpanan
             </button>
-            <button 
+            <button
               onClick={() => setShowDepositModal(true)}
               className="px-5 py-2 bg-white/10 text-white font-bold rounded-lg hover:bg-white/20 transition-colors border border-white/20 text-sm"
             >
@@ -1049,13 +1047,12 @@ const Savings: React.FC = () => {
                     <tr key={trx.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700/30 transition-colors">
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-lg ${
-                            trx.transaction_type === 'deposit' 
-                              ? 'bg-green-100 text-green-600' 
+                          <div className={`p-1.5 rounded-lg ${trx.transaction_type === 'deposit'
+                              ? 'bg-green-100 text-green-600'
                               : 'bg-amber-100 text-amber-600'
-                          }`}>
-                            {trx.transaction_type === 'deposit' 
-                              ? <ArrowUpRight size={14} /> 
+                            }`}>
+                            {trx.transaction_type === 'deposit'
+                              ? <ArrowUpRight size={14} />
                               : <ArrowDownRight size={14} />
                             }
                           </div>
@@ -1072,11 +1069,10 @@ const Savings: React.FC = () => {
                       <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">
                         {formatDate(trx.transaction_date)}
                       </td>
-                      <td className={`px-4 py-2 text-xs font-bold text-right ${
-                        trx.transaction_type === 'deposit' 
-                          ? 'text-green-600 dark:text-green-400' 
+                      <td className={`px-4 py-2 text-xs font-bold text-right ${trx.transaction_type === 'deposit'
+                          ? 'text-green-600 dark:text-green-400'
                           : 'text-red-600 dark:text-red-400'
-                      }`}>
+                        }`}>
                         {trx.transaction_type === 'deposit' ? '+' : '-'}{formatCurrency(trx.amount)}
                       </td>
                       <td className="px-4 py-2 text-center">

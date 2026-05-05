@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\MemberDashboardController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DatabaseBackupController;
-use App\Http\Controllers\Api\SettingController; // <-- TAMBAHKAN INI
+use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\WithdrawalController;
 
 
@@ -44,24 +44,24 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/loans/{id}/download-document', [LoanController::class, 'downloadDocument']);
     Route::get('/loans/{id}/document-info', [LoanController::class, 'getDocumentInfo']);
     Route::get('/loans/{id}/installments', [LoanController::class, 'getInstallments']);
-        
+
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/loans/{id}/treasurer-approve', [LoanController::class, 'treasurerApprove']);
         Route::put('/loans/{id}/disburse', [LoanController::class, 'disburse']);
         Route::put('/loans/{id}/chairman-approve', [LoanController::class, 'chairmanApprove']);
         Route::put('/loans/{id}/reject', [LoanController::class, 'reject']);
     });
-    
+
     // FILES ROUTES
     Route::get('/files', [FileController::class, 'index']);
     Route::get('/files/{file}', [FileController::class, 'show']);
     Route::get('/files/download/{file}', [FileController::class, 'download']);
-    
+
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/files', [FileController::class, 'store']);
         Route::delete('/files/{file}', [FileController::class, 'destroy']);
     });
-    
+
     // USER ROUTES
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/users', [UserController::class, 'index']);
@@ -70,27 +70,27 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/users/{id}', [UserController::class, 'update']);
         Route::delete('/users/{id}', [UserController::class, 'destroy']);
         Route::post('/users/{id}/restore', [UserController::class, 'restore']);
-        
+
         // PROFILE ROUTES - update current user's profile
         Route::put('/users/profile/update', [UserController::class, 'updateProfile']);
         Route::post('/users/profile/change-password', [UserController::class, 'changePassword']);
         Route::post('/users/profile/upload-avatar', [UserController::class, 'uploadAvatar']);
     });
-    
+
     // LOAN INSTALLMENT ROUTES
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/installments', [LoanInstallmentController::class, 'store']);
         Route::get('/loans/{loanId}/installments', [LoanInstallmentController::class, 'index']);
     });
-    
+
     // SAVING TYPES ROUTES
     Route::get('/saving-types', [SavingTypeController::class, 'index']);
-    
+
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/saving-types', [SavingTypeController::class, 'store']);
         Route::put('/saving-types/{savingType}', [SavingTypeController::class, 'update']);
     });
-    
+
     // SAVINGS ROUTES
     Route::get('/savings', [SavingController::class, 'index']);
     Route::post('/savings', [SavingController::class, 'store']);
@@ -102,11 +102,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // EXPORT TRANSACTION HISTORY
     Route::get('/savings/transactions/export', [SavingController::class, 'exportTransactionHistory']);
-    
+
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/savings/{id}/verify', [SavingController::class, 'verifyDeposit']);
     });
-    
+
     // PAYROLL ROUTES - Perbaiki nama method yang dipanggil
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/savings/payroll/check-period', [SavingController::class, 'checkPayrollPeriod']);
@@ -115,14 +115,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/savings/payroll/process', [SavingController::class, 'processPayroll']); // Ganti dari processPayrollDeductions
         Route::get('/savings/payroll/export', [SavingController::class, 'exportPayroll']); // Ganti dari exportPayrollHistory
     });
-    
+
     // SHU ROUTES
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/savings/financial/shu/calculate', [SavingController::class, 'calculateSHU']);
         Route::post('/savings/financial/shu/process', [SavingController::class, 'processSHU']);
         Route::get('/savings/financial/shu/history', [SavingController::class, 'getSHUHistory']);
     });
-    
+
     // KANTIN INCOME ROUTES
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/savings/kantin/incomes', [SavingController::class, 'getKantinIncomes']);
@@ -130,14 +130,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/savings/kantin/incomes/{id}', [SavingController::class, 'updateKantinIncome']);
         Route::delete('/savings/kantin/incomes/{id}', [SavingController::class, 'deleteKantinIncome']);
     });
-    
+
     // FINANCIAL MANAGEMENT ROUTES
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/savings/financial/summary', [SavingController::class, 'getFinancialSummary']);
         Route::get('/savings/financial/transactions', [SavingController::class, 'getTransactionHistory']);
         Route::get('/savings/financial', [SavingController::class, 'getFinancialSummary']);
     });
-    
+
     // ==============================================
     // ACTIVITY LOG ROUTES (FIXED ORDER)
     // ==============================================
@@ -147,7 +147,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/', [ActivityLogController::class, 'index']);
         Route::get('/{id}', [ActivityLogController::class, 'show']);
     });
-    
+
     // REPORT ROUTES
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/report/rekening-koran/{userId}', [ReportController::class, 'generateRekeningKoran']);
@@ -162,7 +162,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/dashboard/clear-cache', [DashboardController::class, 'clearCache']);
         Route::get('/dashboard', [DashboardController::class, 'index']);
     });
-    
+
     // Database Backup Routes
     Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('database')->group(function () {
@@ -177,12 +177,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Withdrawal Routes
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/withdrawals', [WithdrawalController::class, 'index']);
+        Route::get('/withdrawals/stats', [WithdrawalController::class, 'stats']);
         Route::post('/withdrawals', [WithdrawalController::class, 'store']);
-        Route::get('/withdrawals/stats', [WithdrawalController::class, 'getStats']);
-        Route::post('/withdrawals/{id}/treasurer-approve', [WithdrawalController::class, 'treasurerApprove']);
-        Route::post('/withdrawals/{id}/chairman-approve', [WithdrawalController::class, 'chairmanApprove']);
-        Route::post('/withdrawals/{id}/disburse', [WithdrawalController::class, 'disburse']);
+        Route::get('/withdrawals/{id}', [WithdrawalController::class, 'show']);
+        Route::post('/withdrawals/{id}/treasurer-approve', [WithdrawalController::class, 'approveTreasurer']);
+        Route::post('/withdrawals/{id}/chairman-approve', [WithdrawalController::class, 'approveChairman']);
         Route::post('/withdrawals/{id}/reject', [WithdrawalController::class, 'reject']);
+        Route::post('/withdrawals/{id}/disburse', [WithdrawalController::class, 'disburse']);
     });
 
     // ==================== MEMBER DASHBOARD ROUTES ====================
