@@ -71,6 +71,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // PROFILE ROUTES - update current user's profile
         Route::put('/users/profile/update', [UserController::class, 'updateProfile']);
         Route::post('/users/profile/change-password', [UserController::class, 'changePassword']);
+        Route::post('/users/profile/upload-avatar', [UserController::class, 'uploadAvatar']);
     });
     
     // LOAN INSTALLMENT ROUTES

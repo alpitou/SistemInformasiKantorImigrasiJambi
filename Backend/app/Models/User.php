@@ -7,6 +7,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -27,13 +28,16 @@ class User extends Authenticatable
         'status',
         'bank_name',
         'account_number',
-        'account_name'
+        'account_name',
+        'avatar_path'
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
     ];
+
+     protected $appends = ['avatar'];
 
     protected $casts = [
         'email_verified_at' => 'datetime',
@@ -63,14 +67,11 @@ class User extends Authenticatable
     {
         return $this->hasMany(LoanInstallment::class, 'received_by');
     }
-
-    // Cek apakah user memiliki role tertentu
     public function hasRole($roleName)
     {
         return $this->role && $this->role->name === $roleName;
     }
-
-    // Cek apakah user memiliki salah satu dari beberapa role
+   
     public function hasAnyRole($roles)
     {
         return $this->role && in_array($this->role->name, (array) $roles);
@@ -112,6 +113,9 @@ class User extends Authenticatable
     // Accessor untuk avatar
     public function getAvatarAttribute()
     {
+        if ($this->avatar_path && Storage::disk('public')->exists($this->avatar_path)) {
+        return asset('storage/' . $this->avatar_path);
+    }
         return 'https://api.dicebear.com/7.x/avataaars/svg?seed=' . urlencode($this->name);
     }
 

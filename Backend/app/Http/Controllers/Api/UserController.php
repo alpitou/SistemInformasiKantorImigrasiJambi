@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class UserController extends Controller
@@ -16,7 +17,7 @@ class UserController extends Controller
         try {
             $perPage = $request->get('per_page', 15);
             $users = User::with('role')->paginate($perPage);
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Users retrieved successfully',
@@ -120,7 +121,7 @@ class UserController extends Controller
             Log::info('Request data:', $request->all());
 
             $user = User::findOrFail($id);
-            
+
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'email' => 'required|email',
@@ -193,19 +194,19 @@ class UserController extends Controller
             $user->bank_name = $validated['bank_name'] ?? null;
             $user->account_number = $validated['account_number'] ?? null;
             $user->account_name = $validated['account_name'] ?? null;
-            
+
             if ($request->has('nip')) {
                 $user->nip = !empty($validated['nip']) ? $validated['nip'] : null;
             }
-            
+
             if ($request->has('nik')) {
                 $user->nik = !empty($validated['nik']) ? $validated['nik'] : null;
             }
-            
+
             if ($request->filled('password')) {
                 $user->password = Hash::make($request->password);
             }
-            
+
             $user->save();
 
             Log::info('User updated successfully');
@@ -267,14 +268,14 @@ class UserController extends Controller
     {
         try {
             $user = $request->user();
-            
+
             if (!$user) {
                 return response()->json([
                     'success' => false,
                     'message' => 'User not authenticated'
                 ], 401);
             }
-            
+
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'phone' => 'nullable|string|max:20',
@@ -293,7 +294,7 @@ class UserController extends Controller
             }
 
             $validated = $validator->validated();
-            
+
             // Update only the fields that are provided
             if (isset($validated['name'])) {
                 $user->name = $validated['name'];
@@ -313,7 +314,7 @@ class UserController extends Controller
             if (array_key_exists('account_name', $validated)) {
                 $user->account_name = $validated['account_name'];
             }
-            
+
             $user->save();
 
             // Refresh user with role relation
@@ -333,6 +334,50 @@ class UserController extends Controller
         }
     }
 
+    public function uploadAvatar(Request $request)
+    {
+        try {
+            $request->validate([
+                'avatar' => 'required|file|mimes:jpg,jpeg,png,webp|max:2048'
+            ]);
+
+            $user = $request->user();
+            $file = $request->file('avatar');
+
+            // Hapus avatar lama jika ada
+            if ($user->avatar_path && Storage::disk('public')->exists($user->avatar_path)) {
+                Storage::disk('public')->delete($user->avatar_path);
+            }
+
+            $filename = 'avatar_' . $user->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('avatars', $filename, 'public');
+
+            $user->avatar_path = $path;
+            $user->save();
+            $user->refresh();
+            $user->load('role');
+            \Log::info('Avatar uploaded successfully', [
+                'user_id' => $user->id,
+                'avatar_path' => $user->avatar_path,
+                'avatar_url' => $user->avatar
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Foto profil berhasil diupdate',
+                'data' => $user
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Upload avatar error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal upload foto: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
     /**
      * Change password for current authenticated user
      */
@@ -340,14 +385,14 @@ class UserController extends Controller
     {
         try {
             $user = $request->user();
-            
+
             if (!$user) {
                 return response()->json([
                     'success' => false,
                     'message' => 'User not authenticated'
                 ], 401);
             }
-            
+
             $validator = Validator::make($request->all(), [
                 'current_password' => 'required|string',
                 'new_password' => 'required|string|min:4',

@@ -1,5 +1,5 @@
 // src/pages/member/Profile.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Mail, Phone, MapPin, Briefcase, Shield, Camera, Save, Lock, Smartphone, ArrowRight, X, Eye, EyeOff, CreditCard } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -15,6 +15,10 @@ const Profile: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form data states
   const [formData, setFormData] = useState({
@@ -46,15 +50,118 @@ const Profile: React.FC = () => {
     }
   }, [user]);
 
-  // Fetch fresh user data from API
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validasi tipe file
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      addNotification({
+        title: 'Format Tidak Valid',
+        message: 'Hanya file JPG, PNG, atau WEBP yang diperbolehkan.',
+        type: 'error'
+      });
+      return;
+    }
+
+    // Validasi ukuran file (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      addNotification({
+        title: 'Ukuran Terlalu Besar',
+        message: 'Maksimal ukuran file adalah 2MB.',
+        type: 'error'
+      });
+      return;
+    }
+
+    setAvatarFile(file);
+
+    // Buat preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAvatarPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadAvatar = async () => {
+    if (!avatarFile) return;
+
+    setIsUploadingAvatar(true);
+    const formData = new FormData();
+    formData.append('avatar', avatarFile);
+
+    try {
+      const response = await api.post('/users/profile/upload-avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (response.data.success) {
+        // Update user data dengan avatar baru
+        const updatedUser = response.data.data;
+
+        // Log untuk debug
+        console.log('Upload response:', updatedUser);
+        console.log('Avatar URL:', updatedUser.avatar);
+
+        // Update user di context/state
+        updateUser(updatedUser);
+
+        
+
+        // Reset states
+        setAvatarFile(null);
+        setAvatarPreview(null);
+
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+
+        addNotification({
+          title: 'Berhasil',
+          message: 'Foto profil berhasil diperbarui.',
+          type: 'success'
+        });
+
+        // Refresh data user untuk memastikan avatar terupdate
+        await fetchUserData();
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      addNotification({
+        title: 'Gagal',
+        message: error.response?.data?.message || 'Gagal mengupload foto profil.',
+        type: 'error'
+      });
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  // Fungsi untuk membatalkan upload
+  const cancelAvatarUpload = () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const fetchUserData = async () => {
     try {
       const userId = user?.id;
       if (!userId) return;
-      
+
       const response = await api.get(`/users/${userId}`);
       if (response.data.success) {
         const freshUser = response.data.data;
+
+        // Log untuk debug
+        console.log('Fetched user data:', freshUser);
+        console.log('Avatar from API:', freshUser.avatar);
+
         updateUser(freshUser);
         setFormData({
           name: freshUser.name || '',
@@ -126,17 +233,17 @@ const Profile: React.FC = () => {
     try {
       // Use PUT method to update profile
       const response = await api.put('/users/profile/update', formData);
-      
+
       if (response.data.success) {
         const updatedUser = response.data.data;
         updateUser(updatedUser);
-        
+
         addNotification({
           title: 'Berhasil',
           message: 'Profil berhasil diperbarui.',
           type: 'success'
         });
-        
+
         setIsEditing(false);
         await fetchUserData();
       }
@@ -155,7 +262,7 @@ const Profile: React.FC = () => {
   if (!user) return null;
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-4xl mx-auto space-y-8"
@@ -166,7 +273,7 @@ const Profile: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400">Kelola informasi pribadi dan keamanan akun Anda.</p>
         </div>
         {!isEditing ? (
-          <button 
+          <button
             onClick={() => setIsEditing(true)}
             className="px-6 py-2 bg-imigrasi-primary text-white rounded-xl text-sm font-bold hover:bg-blue-900 transition-colors shadow-lg shadow-imigrasi-primary/20"
           >
@@ -174,7 +281,7 @@ const Profile: React.FC = () => {
           </button>
         ) : (
           <div className="flex items-center gap-3">
-            <button 
+            <button
               onClick={() => {
                 setIsEditing(false);
                 fetchUserData();
@@ -183,7 +290,7 @@ const Profile: React.FC = () => {
             >
               Batal
             </button>
-            <button 
+            <button
               onClick={handleSave}
               disabled={isLoading}
               className="flex items-center gap-2 px-6 py-2 bg-imigrasi-primary text-white rounded-xl text-sm font-bold hover:bg-blue-900 transition-colors shadow-lg shadow-imigrasi-primary/20 disabled:opacity-70"
@@ -199,14 +306,14 @@ const Profile: React.FC = () => {
       <AnimatePresence>
         {showPasswordModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setShowPasswordModal(false)}
             />
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -223,13 +330,13 @@ const Profile: React.FC = () => {
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Password Lama</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
+                    <input
                       type={showPassword ? "text" : "password"}
                       value={passwordData.current_password}
-                      onChange={(e) => setPasswordData({...passwordData, current_password: e.target.value})}
+                      onChange={(e) => setPasswordData({ ...passwordData, current_password: e.target.value })}
                       className="w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
                     />
-                    <button 
+                    <button
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-imigrasi-primary transition-colors"
                     >
@@ -241,10 +348,10 @@ const Profile: React.FC = () => {
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Password Baru</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
+                    <input
                       type={showPassword ? "text" : "password"}
                       value={passwordData.new_password}
-                      onChange={(e) => setPasswordData({...passwordData, new_password: e.target.value})}
+                      onChange={(e) => setPasswordData({ ...passwordData, new_password: e.target.value })}
                       className="w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
                     />
                   </div>
@@ -253,13 +360,13 @@ const Profile: React.FC = () => {
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Konfirmasi Password Baru</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
+                    <input
                       type={showConfirmPassword ? "text" : "password"}
                       value={passwordData.confirm_password}
-                      onChange={(e) => setPasswordData({...passwordData, confirm_password: e.target.value})}
+                      onChange={(e) => setPasswordData({ ...passwordData, confirm_password: e.target.value })}
                       className="w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
                     />
-                    <button 
+                    <button
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-imigrasi-primary transition-colors"
                     >
@@ -267,7 +374,7 @@ const Profile: React.FC = () => {
                     </button>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={handleUpdatePassword}
                   disabled={isUpdatingPassword || !passwordData.current_password || !passwordData.new_password || !passwordData.confirm_password}
                   className="w-full py-4 bg-imigrasi-primary text-white font-bold rounded-2xl hover:bg-blue-900 transition-all shadow-lg shadow-imigrasi-primary/20 disabled:opacity-70 flex items-center justify-center gap-2"
@@ -288,17 +395,56 @@ const Profile: React.FC = () => {
             <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-imigrasi-primary to-blue-900" />
             <div className="relative pt-8">
               <div className="relative inline-block">
-                <img 
-                  src={user.avatar} 
-                  alt={user.name} 
+                <img
+                  src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`}
+                  alt={user?.name}
                   className="w-32 h-32 rounded-3xl border-4 border-white dark:border-neutral-800 shadow-xl object-cover mx-auto"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`;
+                  }}
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/jpg,image/webp"
+                  onChange={handleAvatarChange}
+                  className="hidden"
                 />
                 {isEditing && (
-                  <button className="absolute bottom-[-10px] right-[-10px] p-3 bg-imigrasi-accent text-imigrasi-primary rounded-2xl shadow-lg hover:scale-110 transition-transform">
-                    <Camera size={18} />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute bottom-[-10px] right-[-10px] p-3 bg-imigrasi-accent text-imigrasi-primary rounded-2xl shadow-lg hover:scale-110 transition-transform"
+                    disabled={isUploadingAvatar}
+                  >
+                    {isUploadingAvatar ? (
+                      <div className="w-4 h-4 border-2 border-imigrasi-primary/30 border-t-imigrasi-primary rounded-full animate-spin" />
+                    ) : (
+                      <Camera size={18} />
+                    )}
                   </button>
                 )}
               </div>
+              {avatarPreview && (
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                  <p className="text-xs text-blue-700 dark:text-blue-400 mb-2">Foto baru akan mengganti foto profil saat ini</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={handleUploadAvatar}
+                      disabled={isUploadingAvatar}
+                      className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                    >
+                      {isUploadingAvatar ? 'Mengupload...' : 'Simpan Foto'}
+                    </button>
+                    <button
+                      onClick={cancelAvatarUpload}
+                      disabled={isUploadingAvatar}
+                      className="px-3 py-1.5 bg-gray-500 text-white text-xs font-bold rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </div>
+              )}
               <h2 className="mt-6 text-xl font-bold text-gray-900 dark:text-white">{formData.name}</h2>
               <p className="text-sm font-mono text-gray-500 mt-1">{user.nip}</p>
               <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
@@ -310,7 +456,7 @@ const Profile: React.FC = () => {
 
           <div className="glass-card p-6 rounded-3xl space-y-4">
             <h3 className="font-bold text-gray-900 dark:text-white">Keamanan Akun</h3>
-            <button 
+            <button
               onClick={() => setShowPasswordModal(true)}
               className="w-full flex items-center justify-between p-4 rounded-2xl bg-gray-50 dark:bg-neutral-700/30 hover:bg-gray-100 transition-all group"
             >
@@ -338,10 +484,10 @@ const Profile: React.FC = () => {
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nama Lengkap</label>
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     disabled={!isEditing}
                     className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
                   />
@@ -351,9 +497,9 @@ const Profile: React.FC = () => {
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">NIP</label>
                 <div className="relative">
                   <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input 
-                    type="text" 
-                    value={user.nip}
+                  <input
+                    type="text"
+                    value={user.nip ?? ''}
                     disabled
                     className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent rounded-2xl outline-none dark:text-white opacity-60"
                   />
@@ -363,9 +509,9 @@ const Profile: React.FC = () => {
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Email Dinas</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input 
-                    type="email" 
-                    value={user.email}
+                  <input
+                    type="email"
+                    value={user.email ?? ''}
                     disabled
                     className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent rounded-2xl outline-none dark:text-white opacity-60"
                   />
@@ -375,10 +521,10 @@ const Profile: React.FC = () => {
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nomor WhatsApp</label>
                 <div className="relative">
                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input 
-                    type="tel" 
+                  <input
+                    type="tel"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     disabled={!isEditing}
                     className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
                   />
@@ -390,10 +536,10 @@ const Profile: React.FC = () => {
               <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Unit Kerja</label>
               <div className="relative">
                 <MapPin className="absolute left-4 top-4 text-gray-400" size={18} />
-                <textarea 
+                <textarea
                   rows={2}
                   value={formData.unit}
-                  onChange={(e) => setFormData({...formData, unit: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                   disabled={!isEditing}
                   className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60 resize-none"
                 />
@@ -407,10 +553,10 @@ const Profile: React.FC = () => {
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nama Bank</label>
                   <div className="relative">
                     <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={formData.bank_name}
-                      onChange={(e) => setFormData({...formData, bank_name: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Contoh: Bank Mandiri, BCA, BRI"
                       className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
@@ -421,10 +567,10 @@ const Profile: React.FC = () => {
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nomor Rekening</label>
                   <div className="relative">
                     <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={formData.account_number}
-                      onChange={(e) => setFormData({...formData, account_number: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Masukkan nomor rekening"
                       className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"
@@ -435,10 +581,10 @@ const Profile: React.FC = () => {
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nama Pemilik Rekening</label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={formData.account_name}
-                      onChange={(e) => setFormData({...formData, account_name: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, account_name: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Nama sesuai rekening"
                       className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white disabled:opacity-60"

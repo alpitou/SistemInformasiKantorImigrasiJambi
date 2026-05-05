@@ -31,9 +31,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const initAuth = async () => {
       const storedUser = localStorage.getItem('user');
       const token = localStorage.getItem('token');
-      
+
       console.log('Initializing auth - storedUser:', !!storedUser, 'token:', !!token);
-      
+
       if (storedUser && token) {
         try {
           const parsedUser = JSON.parse(storedUser);
@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       setIsLoading(false);
     };
-    
+
     initAuth();
   }, []);
 
@@ -71,25 +71,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const updateUser = (userData: User) => {
-    setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
-    console.log('User updated:', userData);
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
   };
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       console.log('Login function called with:', { email, passwordLength: password.length });
-      
+
       const response = await authService.login(email, password);
       console.log('Login service response:', response);
-      
+
       if (response.success) {
         const userData = response.data.user;
-        
+
         // Role dari backend: admin, ketua, bendahara, sekretaris, anggota
         if (userData.role) {
           if (typeof userData.role === 'object') {
@@ -99,7 +98,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             userData.roleName = userData.role;
           }
         }
-        
+
         setUser(userData);
         console.log('User set in context:', userData);
       } else {
@@ -119,7 +118,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       await authService.logout();
       setUser(null);
@@ -137,15 +136,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated: !!user, 
-      login, 
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated: !!user,
+      login,
       logout,
       updateUser,
       isLoading,
       error,
-      isDarkMode, 
+      isDarkMode,
       toggleDarkMode,
       testBackendConnection
     }}>
