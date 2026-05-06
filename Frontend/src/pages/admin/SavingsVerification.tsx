@@ -351,7 +351,7 @@ const SavingsVerification: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowHistory(!showHistory)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-imigrasi-primary dark:bg-neutral-800 text-white dark:text-gray-300 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
           >
             <History size={18} />
             {showHistory ? 'Tutup Riwayat' : 'Lihat Riwayat'}
@@ -386,7 +386,7 @@ const SavingsVerification: React.FC = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="glass-card p-6 rounded-3xl bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+        <div className="p-6 rounded-3xl bg-imigrasi-primary from-amber-500 to-orange-600 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-white/80 text-sm">Menunggu Verifikasi</p>
@@ -398,7 +398,7 @@ const SavingsVerification: React.FC = () => {
           </div>
         </div>
 
-        <div className="glass-card p-6 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
+        <div className="glass card p-6 rounded-3xl bg-imigrasi-primary from-emerald-500 to-teal-600 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-white/80 text-sm">Nilai Setoran Tertunda</p>
@@ -410,7 +410,7 @@ const SavingsVerification: React.FC = () => {
           </div>
         </div>
 
-        <div className="glass-card p-6 rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
+        <div className="glass card p-6 rounded-3xl bg-imigrasi-primary from-blue-500 to-indigo-600 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-white/80 text-sm">Sudah Diverifikasi</p>
@@ -422,7 +422,7 @@ const SavingsVerification: React.FC = () => {
           </div>
         </div>
 
-        <div className="glass-card p-6 rounded-3xl bg-gradient-to-br from-purple-500 to-pink-600 text-white">
+        <div className="glass card p-6 rounded-3xl bg-imigrasi-primary from-purple-500 to-pink-600 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-white/80 text-sm">Total Dana Masuk</p>
@@ -444,7 +444,7 @@ const SavingsVerification: React.FC = () => {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="glass-card p-6 rounded-3xl">
+            <div className="glass card p-6 rounded-3xl">
               <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <History size={20} /> Riwayat Verifikasi Setoran Sukarela
               </h3>
