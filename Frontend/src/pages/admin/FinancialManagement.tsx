@@ -733,7 +733,7 @@ const FinancialManagement: React.FC = () => {
           <p className="text-sm text-gray-500 dark:text-gray-400">Pantau arus kas, kelola simpanan, pinjaman, dan pemasukan kantin</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => setShowKantinModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">
+          <button onClick={() => setShowKantinModal(true)} className="flex items-center gap-2 px-4 py-2 bg-imigrasi-primary text-white rounded-lg text-sm font-bold hover:bg-blue-900 transition-colors disabled:opacity-70">
             <ShoppingBag size={14} /> Tambah Pemasukan
           </button>
           <button onClick={() => setShowSHUModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-imigrasi-accent text-imigrasi-primary rounded-lg text-sm font-medium hover:bg-white">
@@ -746,10 +746,10 @@ const FinancialManagement: React.FC = () => {
       </div>
 
       {/* Filter */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white dark:bg-neutral-800 rounded-xl border">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white dark:bg-neutral-800 rounded-xl">
         <div className="flex items-center gap-2">
           <Filter size={16} className="text-gray-400" />
-          <select value={transactionFilter} onChange={(e) => setTransactionFilter(e.target.value)} className="px-2 py-1 text-sm bg-gray-100 dark:bg-neutral-700 rounded-lg">
+          <select value={transactionFilter} onChange={(e) => setTransactionFilter(e.target.value)} className="w-full pl-11 pr-4 py-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl focus:border-imigrasi-primary outline-none transition-colors dark:text-white">
             <option value="all">Semua</option>
             <option value="savings">Simpanan</option>
             <option value="payroll">Payroll</option>
@@ -759,42 +759,42 @@ const FinancialManagement: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <Calendar size={16} className="text-gray-400" />
-          <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="px-2 py-1 text-sm bg-gray-100 dark:bg-neutral-700 rounded-lg" />
+          <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full pl-11 pr-4 py-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl focus:border-imigrasi-primary outline-none transition-colors dark:text-white" />
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl text-white">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"> 
+        <div className="p-4 bg-imigrasi-primary from-blue-500 to-blue-600 rounded-xl text-white">
           <p className="text-xs opacity-80">Total Kas</p>
           <p className="text-xl font-bold">{formatCurrency(financialData.total_cash)}</p>
         </div>
-        <div className="p-4 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl text-white">
+        <div className="p-4 bg-imigrasi-primary from-emerald-500 to-emerald-600 rounded-xl text-white">
           <p className="text-xs opacity-80">Total Simpanan</p>
           <p className="text-xl font-bold">{formatCurrency(financialData.total_savings)}</p>
         </div>
-        <div className="p-4 bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl text-white">
+        <div className="p-4 bg-imigrasi-primary from-amber-500 to-amber-600 rounded-xl text-white">
           <p className="text-xs opacity-80">Piutang Pinjaman</p>
           <p className="text-xl font-bold">{formatCurrency(financialData.total_loans)}</p>
         </div>
-        <div className="p-4 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl text-white">
+        <div className="p-4 bg-imigrasi-primary from-purple-500 to-purple-600 rounded-xl text-white">
           <p className="text-xs opacity-80">Laba (SHU)</p>
           <p className="text-xl font-bold">{formatCurrency(financialData.total_shu)}</p>
         </div>
       </div>
 
       {/* Kantin Section */}
-      <div className="bg-white dark:bg-neutral-800 rounded-xl border overflow-hidden">
-        <div className="p-4 border-b flex flex-wrap justify-between items-center gap-2">
+      <div className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 overflow-hidden shadow-sm">
+        <div className="p-4 flex flex-wrap justify-between items-center border-b border-gray-200 dark:border-neutral-700 gap-2">
           <h3 className="font-bold flex items-center gap-2"><ShoppingBag size={18} /> Pemasukan Kantin - {new Date(selectedMonth + '-01').toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</h3>
         </div>
         
         <div className="grid grid-cols-2 gap-3 p-4 bg-gray-50 dark:bg-neutral-800/30">
-          <div className="p-3 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl text-white">
+          <div className="p-3 bg-imigrasi-primary from-emerald-500 to-teal-600 rounded-xl text-white">
             <p className="text-xs opacity-80">Total Pemasukan</p>
             <p className="text-lg font-bold">{formatCurrency(kantinTotal)}</p>
           </div>
-          <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl text-white">
+          <div className="p-3 bg-imigrasi-primary from-purple-500 to-pink-600 rounded-xl text-white">
             <p className="text-xs opacity-80">Kontribusi SHU</p>
             <p className="text-lg font-bold">{formatCurrency(kantinTotalShu)}</p>
           </div>
@@ -805,7 +805,7 @@ const FinancialManagement: React.FC = () => {
             <div className="p-8 text-center">
               <ShoppingBag size={40} className="mx-auto text-gray-300 mb-2" />
               <p className="text-sm text-gray-500">Belum ada pemasukan kantin</p>
-              <button onClick={() => setShowKantinModal(true)} className="mt-3 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm">+ Tambah</button>
+              <button onClick={() => setShowKantinModal(true)} className="mt-3 px-3 py-1.5 bg-imigrasi-accent text-imigrasi-primary rounded-lg text-sm font-medium hover:bg-white">+ Tambah</button>
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -858,8 +858,8 @@ const FinancialManagement: React.FC = () => {
 
       {/* Transaction History */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-neutral-800 rounded-xl border overflow-hidden">
-          <div className="p-4 border-b">
+        <div className="lg:col-span-2 bg-white dark:bg-neutral-800 rounded-xl overflow-hidden dark:border-neutral-700 gap-2 shadow-sm">
+          <div className="p-4 border-b border-gray-200">
             <h3 className="font-bold">Riwayat Transaksi</h3>
           </div>
           <div className="max-h-[400px] overflow-y-auto">
@@ -891,8 +891,8 @@ const FinancialManagement: React.FC = () => {
         </div>
 
         <div className="space-y-4">
-          <div className="bg-white dark:bg-neutral-800 rounded-xl border p-4">
-            <h3 className="font-bold mb-3">Ringkasan Keuangan</h3>
+          <div className="bg-white dark:bg-neutral-800 rounded-xl border-gray-200 dark:border-neutral-700 gap-2 p-4">
+            <h3 className="font-bold mb-3 border-b border-gray-200 gap-2 p-2">Ringkasan Keuangan</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-gray-500">Total Anggota</span><span className="font-bold">{financialData.total_members}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Total Pinjaman</span><span className="font-bold">{formatCurrency(financialData.total_loan_amount)}</span></div>
@@ -902,18 +902,6 @@ const FinancialManagement: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-imigrasi-primary text-white rounded-xl p-4">
-            <h4 className="font-bold text-imigrasi-accent">Target {new Date().getFullYear()}</h4>
-            <div className="mt-2">
-              <div className="flex justify-between text-xs">
-                <span>Rp {(financialData.total_savings / 1000000).toFixed(0)}M / Rp 2M</span>
-                <span>{((financialData.total_savings / 2000000000) * 100).toFixed(0)}%</span>
-              </div>
-              <div className="mt-1 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                <div className="h-full bg-imigrasi-accent rounded-full" style={{ width: `${Math.min(100, (financialData.total_savings / 2000000000) * 100)}%` }} />
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

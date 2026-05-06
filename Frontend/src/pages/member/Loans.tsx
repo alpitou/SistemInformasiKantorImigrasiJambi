@@ -33,9 +33,12 @@ interface Installment {
   notes: string | null;
 }
 
-const MAX_LOAN_AMOUNT = 10000000;
-const MIN_LOAN_AMOUNT = 100000;
-const DEFAULT_INTEREST_RATE = 1;
+interface LoanSettings {
+  max_tenor_months: number;
+  default_interest_rate: number;
+  min_loan_amount: number;
+  max_loan_amount: number;
+}
 
 const Loans: React.FC = () => {
   const { user } = useAuth();
@@ -47,13 +50,23 @@ const Loans: React.FC = () => {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   
-  const [loanAmount, setLoanAmount] = useState('');
-  const [loanTenor, setLoanTenor] = useState('10');
+  const [loanAmount, setLoanAmount] = useState<string>('');
+  const [loanTenor, setLoanTenor] = useState<string>('');
   const [loanPurpose, setLoanPurpose] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [agreementDownloaded, setAgreementDownloaded] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [amountError, setAmountError] = useState<string>('');
+  
+  // Loan Settings State - Default values yang akan di-update dari API
+  const [loanSettings, setLoanSettings] = useState<LoanSettings>({
+    max_tenor_months: 10,
+    default_interest_rate: 1,
+    min_loan_amount: 100000,
+    max_loan_amount: 10000000
+  });
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   
   const [simulation, setSimulation] = useState({
     monthlyInstallment: 0,
@@ -96,6 +109,33 @@ const Loans: React.FC = () => {
     });
   };
 
+  // Fetch loan settings from API
+  const fetchLoanSettings = useCallback(async () => {
+    try {
+      const response = await api.get('/loan-settings');
+      console.log('Loan settings API response:', response.data);
+      if (response.data.success) {
+        console.log('Setting data:', response.data.data);
+        setLoanSettings(response.data.data);
+        setLoanTenor(response.data.data.max_tenor_months.toString());
+        setSettingsLoaded(true);
+      } else {
+        setSettingsLoaded(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch loan settings:', error);
+      // Coba ambil dari localStorage
+      const saved = localStorage.getItem('loan_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        console.log('Using saved settings:', parsed);
+        setLoanSettings(parsed);
+        setLoanTenor(parsed.max_tenor_months.toString());
+      }
+      setSettingsLoaded(true);
+    }
+  }, []);
+
   const calculateActiveLoanInfo = useCallback((loansData: Loan[]) => {
     const activeLoan = loansData.find(l => l.status === 'active');
     
@@ -110,7 +150,8 @@ const Loans: React.FC = () => {
       return;
     }
 
-    const totalLoanWithInterest = activeLoan.amount + (activeLoan.amount * activeLoan.interest_rate / 100);
+    const totalInterest = (activeLoan.amount * activeLoan.interest_rate * activeLoan.tenor_months) / 100;
+    const totalLoanWithInterest = activeLoan.amount + totalInterest;
     const paidAmount = totalLoanWithInterest - activeLoan.remaining_balance;
     const paidPercentage = (paidAmount / totalLoanWithInterest) * 100;
     const canTopUp = paidPercentage >= 80;
@@ -119,7 +160,7 @@ const Loans: React.FC = () => {
     if (!canTopUp) {
       message = `Pinjaman aktif Anda baru ${Math.round(paidPercentage)}% lunas. Minimal 80% untuk dapat mengajukan pinjaman baru.`;
     } else {
-      message = `Anda dapat mengajukan pinjaman baru (top up) maksimal ${formatCurrency(MAX_LOAN_AMOUNT)}.`;
+      message = `Anda dapat mengajukan pinjaman baru (top up) maksimal ${formatCurrency(loanSettings.max_loan_amount)}.`;
     }
 
     setActiveLoanInfo({
@@ -129,17 +170,16 @@ const Loans: React.FC = () => {
       canTopUp,
       message
     });
-  }, []);
+  }, [loanSettings.max_loan_amount]);
 
-  // Perhitungan bunga: 1% dari total pinjaman (bukan per bulan berjalan)
+  // Perhitungan bunga: (Pokok × Bunga per bulan × Tenor) / 100
   const calculateSimulation = useCallback((amount: number, tenor: number) => {
     if (amount <= 0 || tenor <= 0) {
       setSimulation({ monthlyInstallment: 0, totalPayment: 0, totalInterest: 0 });
       return;
     }
     
-    // Bunga total = jumlah pinjaman x 1%
-    const totalInterest = amount * DEFAULT_INTEREST_RATE / 100;
+    const totalInterest = (amount * loanSettings.default_interest_rate * tenor) / 100;
     const totalPayment = amount + totalInterest;
     const monthlyInstallment = Math.ceil(totalPayment / tenor);
     
@@ -148,13 +188,43 @@ const Loans: React.FC = () => {
       totalPayment,
       totalInterest
     });
-  }, []);
+  }, [loanSettings.default_interest_rate]);
+
+  // Validasi jumlah pinjaman
+  const validateAmount = useCallback((amount: number): string => {
+    if (isNaN(amount) || amount <= 0) {
+      return '';
+    }
+    if (amount < loanSettings.min_loan_amount) {
+      return `Minimal pinjaman adalah ${formatCurrency(loanSettings.min_loan_amount)}`;
+    }
+    if (amount > loanSettings.max_loan_amount) {
+      return `Maksimal pinjaman adalah ${formatCurrency(loanSettings.max_loan_amount)}`;
+    }
+    if (activeLoanInfo.hasActiveLoan) {
+      const existingLoanAmount = loans.find(l => l.status === 'active')?.amount || 0;
+      if (existingLoanAmount + amount > loanSettings.max_loan_amount) {
+        return `Total pinjaman (aktif + baru) melebihi batas maksimal ${formatCurrency(loanSettings.max_loan_amount)}`;
+      }
+    }
+    return '';
+  }, [loanSettings, activeLoanInfo.hasActiveLoan, loans, formatCurrency]);
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setLoanAmount(value);
+    const numValue = parseInt(value);
+    const error = validateAmount(numValue);
+    setAmountError(error);
+  };
 
   useEffect(() => {
-    const amount = parseInt(loanAmount) || 0;
-    const tenor = parseInt(loanTenor) || 10;
-    calculateSimulation(amount, tenor);
-  }, [loanAmount, loanTenor, calculateSimulation]);
+    if (settingsLoaded) {
+      const amount = parseInt(loanAmount) || 0;
+      const tenor = parseInt(loanTenor) || loanSettings.max_tenor_months;
+      calculateSimulation(amount, tenor);
+    }
+  }, [loanAmount, loanTenor, calculateSimulation, loanSettings.max_tenor_months, settingsLoaded]);
 
   const fetchLoans = useCallback(async () => {
     setIsLoading(true);
@@ -183,8 +253,14 @@ const Loans: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchLoans();
-  }, [fetchLoans]);
+    fetchLoanSettings();
+  }, [fetchLoanSettings]);
+
+  useEffect(() => {
+    if (settingsLoaded) {
+      fetchLoans();
+    }
+  }, [fetchLoans, settingsLoaded]);
 
   const handleViewSchedule = async (loan: Loan) => {
     setSelectedLoan(loan);
@@ -192,28 +268,37 @@ const Loans: React.FC = () => {
     setShowScheduleModal(true);
   };
 
-  const getTenorOptions = () => {
+  // Generate tenor options dari 3 sampai max_tenor_months
+  const getTenorOptions = useCallback(() => {
     const options = [];
-    for (let i = 3; i <= 10; i++) {
+    const maxTenor = loanSettings.max_tenor_months;
+    for (let i = 3; i <= maxTenor; i++) {
       options.push(i);
     }
     return options;
+  }, [loanSettings.max_tenor_months]);
+
+  const handleTenorChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setLoanTenor(e.target.value);
   };
 
   const validateLoanAmount = (amount: number): { valid: boolean; message: string } => {
-    if (amount < MIN_LOAN_AMOUNT) {
-      return { valid: false, message: `Minimal pinjaman adalah ${formatCurrency(MIN_LOAN_AMOUNT)}` };
+    if (isNaN(amount) || amount <= 0) {
+      return { valid: false, message: 'Silakan isi jumlah pinjaman' };
     }
-    if (amount > MAX_LOAN_AMOUNT) {
-      return { valid: false, message: `Maksimal pinjaman adalah ${formatCurrency(MAX_LOAN_AMOUNT)}` };
+    if (amount < loanSettings.min_loan_amount) {
+      return { valid: false, message: `Minimal pinjaman adalah ${formatCurrency(loanSettings.min_loan_amount)}` };
+    }
+    if (amount > loanSettings.max_loan_amount) {
+      return { valid: false, message: `Maksimal pinjaman adalah ${formatCurrency(loanSettings.max_loan_amount)}` };
     }
     
     if (activeLoanInfo.hasActiveLoan) {
       const existingLoanAmount = loans.find(l => l.status === 'active')?.amount || 0;
-      if (existingLoanAmount + amount > MAX_LOAN_AMOUNT) {
+      if (existingLoanAmount + amount > loanSettings.max_loan_amount) {
         return { 
           valid: false, 
-          message: `Total pinjaman (aktif + baru) melebihi batas maksimal ${formatCurrency(MAX_LOAN_AMOUNT)}` 
+          message: `Total pinjaman (aktif + baru) melebihi batas maksimal ${formatCurrency(loanSettings.max_loan_amount)}` 
         };
       }
     }
@@ -243,6 +328,16 @@ const Loans: React.FC = () => {
       return;
     }
 
+    const tenor = parseInt(loanTenor);
+    if (tenor > loanSettings.max_tenor_months) {
+      addNotification({
+        title: 'Validasi Gagal',
+        message: `Tenor maksimal adalah ${loanSettings.max_tenor_months} bulan`,
+        type: 'error'
+      });
+      return;
+    }
+
     if (!activeLoanInfo.canTopUp && activeLoanInfo.hasActiveLoan) {
       addNotification({
         title: 'Tidak Dapat Mengajukan Pinjaman',
@@ -256,8 +351,8 @@ const Loans: React.FC = () => {
     try {
       const response = await api.post('/loans/generate-draft', {
         amount: amount,
-        tenor_months: parseInt(loanTenor),
-        interest_rate: DEFAULT_INTEREST_RATE,
+        tenor_months: tenor,
+        interest_rate: loanSettings.default_interest_rate,
         purpose: loanPurpose || 'Pinjaman anggota',
         user_name: user?.name,
         user_nip: user?.nip,
@@ -341,6 +436,16 @@ const Loans: React.FC = () => {
       return;
     }
 
+    const tenor = parseInt(loanTenor);
+    if (tenor > loanSettings.max_tenor_months) {
+      addNotification({
+        title: 'Validasi Gagal',
+        message: `Tenor maksimal adalah ${loanSettings.max_tenor_months} bulan`,
+        type: 'error'
+      });
+      return;
+    }
+
     if (!agreementDownloaded) {
       addNotification({
         title: 'Validasi Gagal',
@@ -362,8 +467,8 @@ const Loans: React.FC = () => {
     setIsProcessing(true);
     const formData = new FormData();
     formData.append('amount', amount.toString());
-    formData.append('tenor_months', loanTenor);
-    formData.append('interest_rate', DEFAULT_INTEREST_RATE.toString());
+    formData.append('tenor_months', tenor.toString());
+    formData.append('interest_rate', loanSettings.default_interest_rate.toString());
     formData.append('purpose', loanPurpose || 'Pinjaman anggota');
     formData.append('document', uploadedFile);
 
@@ -397,10 +502,11 @@ const Loans: React.FC = () => {
 
   const resetForm = () => {
     setLoanAmount('');
-    setLoanTenor('10');
+    setLoanTenor(loanSettings.max_tenor_months.toString());
     setLoanPurpose('');
     setUploadedFile(null);
     setAgreementDownloaded(false);
+    setAmountError('');
   };
 
   const getStatusBadge = (status: string) => {
@@ -420,11 +526,21 @@ const Loans: React.FC = () => {
   const pendingLoans = loans.filter(l => l.status === 'pending_treasurer' || l.status === 'pending_chairman');
   const completedLoans = loans.filter(l => l.status === 'completed');
   
-  // Cek apakah bisa mengajukan pinjaman baru
   const canApplyForNewLoan = () => {
     if (!activeLoanInfo.hasActiveLoan) return true;
     return activeLoanInfo.canTopUp;
   };
+
+  if (!settingsLoaded) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <Loader2 size={40} className="animate-spin text-imigrasi-primary mx-auto mb-4" />
+          <p className="text-gray-500">Memuat pengaturan pinjaman...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading && loans.length === 0) {
     return (
@@ -459,14 +575,16 @@ const Loans: React.FC = () => {
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               className="relative w-full max-w-2xl bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
-              <div className="sticky top-0 z-10 p-5 border-b border-gray-100 dark:border-neutral-700 flex items-center justify-between bg-gradient-to-r from-imigrasi-primary to-blue-800 text-white">
-                <div className="flex items-center gap-2">
-                  <HandCoins size={22} />
-                  <h3 className="font-bold text-xl">Ajukan Pinjaman Baru</h3>
+              <div className="sticky top-0 z-10 p-5 border-b border-gray-100 dark:border-neutral-700 bg-gradient-to-r from-imigrasi-primary to-blue-800 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <HandCoins size={22} />
+                    <h3 className="font-bold text-xl">Ajukan Pinjaman Baru</h3>
+                  </div>
+                  <button onClick={() => { setShowApplyModal(false); resetForm(); }} className="p-2 hover:bg-white/10 rounded-full">
+                    <X size={20} />
+                  </button>
                 </div>
-                <button onClick={() => { setShowApplyModal(false); resetForm(); }} className="p-2 hover:bg-white/10 rounded-full">
-                  <X size={20} />
-                </button>
               </div>
 
               <div className="p-6 space-y-6">
@@ -488,21 +606,6 @@ const Loans: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Aturan Pinjaman Info */}
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-                  <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm mb-2 flex items-center gap-2">
-                    <Info size={16} />
-                    Ketentuan Pinjaman
-                  </h4>
-                  <ul className="text-xs text-blue-700 dark:text-blue-400 space-y-1 list-disc list-inside">
-                    <li>Maksimal pinjaman: {formatCurrency(MAX_LOAN_AMOUNT)}</li>
-                    <li>Minimal pinjaman: {formatCurrency(MIN_LOAN_AMOUNT)}</li>
-                    <li>Bunga: {DEFAULT_INTEREST_RATE}% flat dari total pinjaman</li>
-                    <li>Tenor: 3 - 10 bulan</li>
-                    <li>Top up dapat dilakukan jika pinjaman sebelumnya sudah lunas minimal 80%</li>
-                  </ul>
-                </div>
-
                 {/* Active Loan Info for Top Up */}
                 {activeLoanInfo.hasActiveLoan && !activeLoanInfo.canTopUp && (
                   <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20">
@@ -520,7 +623,7 @@ const Loans: React.FC = () => {
                   </div>
                 )}
 
-                {/* STEP 1: Form Data - disabled jika tidak bisa top up */}
+                {/* STEP 1: Form Data */}
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
@@ -532,12 +635,20 @@ const Loans: React.FC = () => {
                       <input
                         type="number"
                         value={loanAmount}
-                        onChange={(e) => setLoanAmount(e.target.value)}
+                        onChange={handleAmountChange}
                         disabled={agreementDownloaded || (activeLoanInfo.hasActiveLoan && !activeLoanInfo.canTopUp)}
-                        placeholder={`Min ${formatCurrency(MIN_LOAN_AMOUNT)} - Max ${formatCurrency(MAX_LOAN_AMOUNT)}`}
-                        className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-xl outline-none disabled:opacity-50"
+                        placeholder={`Min ${formatCurrency(loanSettings.min_loan_amount)} - Max ${formatCurrency(loanSettings.max_loan_amount)}`}
+                        className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl outline-none disabled:opacity-50 bg-gray-50 dark:bg-neutral-700 ${
+                          amountError ? 'border-red-500 focus:border-red-500' : 'border-transparent focus:border-imigrasi-accent'
+                        }`}
                       />
                     </div>
+                    {amountError && (
+                      <p className="text-xs text-red-500 mt-1">{amountError}</p>
+                    )}
+                    <p className="text-xs text-gray-400">
+                      Minimal: {formatCurrency(loanSettings.min_loan_amount)} • Maksimal: {formatCurrency(loanSettings.max_loan_amount)}
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -547,7 +658,7 @@ const Loans: React.FC = () => {
                     </label>
                     <select 
                       value={loanTenor}
-                      onChange={(e) => setLoanTenor(e.target.value)}
+                      onChange={handleTenorChange}
                       disabled={agreementDownloaded || (activeLoanInfo.hasActiveLoan && !activeLoanInfo.canTopUp)}
                       className="w-full p-3 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-xl outline-none disabled:opacity-50"
                     >
@@ -555,6 +666,9 @@ const Loans: React.FC = () => {
                         <option key={tenor} value={tenor}>{tenor} Bulan</option>
                       ))}
                     </select>
+                    <p className="text-xs text-gray-400">
+                      Maksimal tenor: {loanSettings.max_tenor_months} bulan
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -574,7 +688,7 @@ const Loans: React.FC = () => {
                 </div>
 
                 {/* Simulation Result */}
-                {loanAmount && parseInt(loanAmount) > 0 && !agreementDownloaded && (
+                {loanAmount && parseInt(loanAmount) > 0 && !agreementDownloaded && !amountError && (
                   <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
                     <h4 className="font-bold text-blue-900 dark:text-blue-400 text-sm mb-3 flex items-center gap-2">
                       <Calculator size={16} />
@@ -586,7 +700,7 @@ const Loans: React.FC = () => {
                         <span className="font-bold">{formatCurrency(parseInt(loanAmount))}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-blue-700 dark:text-blue-300">Bunga ({DEFAULT_INTEREST_RATE}% dari total)</span>
+                        <span className="text-blue-700 dark:text-blue-300">Bunga ({loanSettings.default_interest_rate}% × {loanTenor} bulan)</span>
                         <span className="font-bold">{formatCurrency(simulation.totalInterest)}</span>
                       </div>
                       <div className="flex justify-between">
@@ -609,14 +723,13 @@ const Loans: React.FC = () => {
                 {!agreementDownloaded ? (
                   <button
                     onClick={handleDownloadDraftAgreement}
-                    disabled={isDownloading || !loanAmount || parseInt(loanAmount) <= 0 || (activeLoanInfo.hasActiveLoan && !activeLoanInfo.canTopUp)}
+                    disabled={isDownloading || !loanAmount || parseInt(loanAmount) <= 0 || !!amountError || (activeLoanInfo.hasActiveLoan && !activeLoanInfo.canTopUp)}
                     className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {isDownloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
                     {isDownloading ? 'Mengunduh...' : 'Download Draft Perjanjian'}
                   </button>
                 ) : (
-                  /* STEP 3: Upload Document & Submit */
                   <div className="space-y-4">
                     <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl">
                       <h4 className="font-bold text-green-800 dark:text-green-400 text-sm mb-2 flex items-center gap-2">
@@ -731,14 +844,16 @@ const Loans: React.FC = () => {
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               className="relative w-full max-w-2xl bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl overflow-hidden"
             >
-              <div className="sticky top-0 z-10 p-5 border-b border-gray-100 dark:border-neutral-700 flex items-center justify-between bg-gradient-to-r from-imigrasi-primary to-blue-800 text-white">
-                <h3 className="font-bold text-xl flex items-center gap-2">
-                  <Calendar size={20} />
-                  Jadwal Angsuran Pinjaman
-                </h3>
-                <button onClick={() => setShowScheduleModal(false)} className="p-2 hover:bg-white/10 rounded-full">
-                  <X size={20} />
-                </button>
+              <div className="sticky top-0 z-10 p-5 border-b border-gray-100 dark:border-neutral-700 bg-gradient-to-r from-imigrasi-primary to-blue-800 text-white">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-xl flex items-center gap-2">
+                    <Calendar size={20} />
+                    Jadwal Angsuran Pinjaman
+                  </h3>
+                  <button onClick={() => setShowScheduleModal(false)} className="p-2 hover:bg-white/10 rounded-full">
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
               <div className="p-6 space-y-6">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-neutral-700/30 rounded-xl">
@@ -804,7 +919,7 @@ const Loans: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Pinjaman Saya</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Maksimal pinjaman {formatCurrency(MAX_LOAN_AMOUNT)} dengan bunga {DEFAULT_INTEREST_RATE}% flat dari total pinjaman
+            Maksimal pinjaman {formatCurrency(loanSettings.max_loan_amount)} dengan bunga {loanSettings.default_interest_rate}% per bulan dari pokok pinjaman
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -865,9 +980,9 @@ const Loans: React.FC = () => {
         </div>
       </div>
 
-      {/* Pending Loan Card - untuk pengajuan yang sedang diproses */}
+      {/* Pending Loan Card */}
       {pendingLoans.length > 0 && (
-        <div className="glass-card p-6 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 text-white border-none relative overflow-hidden">
+        <div className="p-6 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 text-white relative overflow-hidden shadow-lg">
           <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-white/5 rounded-full blur-3xl" />
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-4">
@@ -889,7 +1004,7 @@ const Loans: React.FC = () => {
         </div>
       )}
 
-      {/* Info Card for Active Loan Top Up Status - Hanya jika pinjaman aktif dan belum 80% */}
+      {/* Info Card for Active Loan Top Up Status */}
       {activeLoanInfo.hasActiveLoan && !activeLoanInfo.canTopUp && (
         <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800 flex items-start gap-3">
           <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
@@ -897,15 +1012,15 @@ const Loans: React.FC = () => {
             <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">Informasi Top Up Pinjaman</p>
             <p className="text-xs text-amber-700 dark:text-amber-500 mt-1">
               {activeLoanInfo.message} Setelah mencapai 80%, Anda dapat mengajukan pinjaman baru (top up) 
-              dengan total pinjaman tidak melebihi {formatCurrency(MAX_LOAN_AMOUNT)}.
+              dengan total pinjaman tidak melebihi {formatCurrency(loanSettings.max_loan_amount)}.
             </p>
           </div>
         </div>
       )}
 
-      {/* Active Loan Card - HANYA TAMPIL JIKA ADA PINJAMAN AKTIF */}
+      {/* Active Loan Card */}
       {activeLoan ? (
-        <div className="glass-card p-6 rounded-xl bg-gradient-to-br from-imigrasi-primary to-blue-900 text-white border-none relative overflow-hidden">
+        <div className="p-6 rounded-xl bg-gradient-to-br from-imigrasi-primary to-blue-900 text-white relative overflow-hidden shadow-lg">
           <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-white/5 rounded-full blur-3xl" />
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -953,9 +1068,8 @@ const Loans: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* Tampilkan "Tidak Ada Pinjaman Aktif" hanya jika TIDAK ADA pinjaman aktif DAN TIDAK ADA pengajuan pending */
         pendingLoans.length === 0 && (
-          <div className="glass-card p-10 rounded-xl text-center space-y-4">
+          <div className="p-10 rounded-xl text-center space-y-4 bg-white dark:bg-neutral-800 shadow-lg">
             <div className="w-20 h-20 bg-gray-100 dark:bg-neutral-700 rounded-full flex items-center justify-center mx-auto">
               <HandCoins size={40} className="text-gray-400" />
             </div>
@@ -963,7 +1077,7 @@ const Loans: React.FC = () => {
               <h3 className="text-xl font-bold text-gray-900 dark:text-white">Tidak Ada Pinjaman Aktif</h3>
               <p className="text-gray-500 dark:text-gray-400 mt-1">Anda tidak memiliki pinjaman yang sedang berjalan saat ini.</p>
               <p className="text-xs text-gray-400 mt-1">
-                Maksimal pinjaman {formatCurrency(MAX_LOAN_AMOUNT)} dengan bunga {DEFAULT_INTEREST_RATE}% per bulan
+                Maksimal pinjaman {formatCurrency(loanSettings.max_loan_amount)} dengan bunga {loanSettings.default_interest_rate}% per bulan
               </p>
             </div>
             <button
@@ -977,7 +1091,7 @@ const Loans: React.FC = () => {
       )}
 
       {/* Loan History Table */}
-      <div className="glass-card rounded-xl overflow-hidden">
+      <div className="rounded-xl overflow-hidden bg-white dark:bg-neutral-800 shadow-lg">
         <div className="p-5 border-b border-gray-100 dark:border-neutral-700">
           <h3 className="font-bold text-lg text-gray-900 dark:text-white">Riwayat Pinjaman</h3>
         </div>
@@ -1025,23 +1139,6 @@ const Loans: React.FC = () => {
               </tbody>
             </table>
           )}
-        </div>
-      </div>
-
-      {/* Info Box */}
-      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-900/30 flex gap-3">
-        <div className="p-2 bg-white dark:bg-neutral-800 rounded-lg text-imigrasi-primary shadow-sm">
-          <Info size={18} />
-        </div>
-        <div>
-          <h4 className="font-bold text-blue-900 dark:text-blue-400 text-sm">Informasi Pinjaman</h4>
-          <p className="text-xs text-blue-800 dark:text-blue-500/80 leading-relaxed mt-1">
-            • Bunga pinjaman: <strong>{DEFAULT_INTEREST_RATE}% flat</strong> dari total pinjaman (contoh: pinjaman Rp 10.000.000, bunga Rp 100.000)<br />
-            • Maksimal pinjaman: <strong>{formatCurrency(MAX_LOAN_AMOUNT)}</strong><br />
-            • Minimal pinjaman: <strong>{formatCurrency(MIN_LOAN_AMOUNT)}</strong><br />
-            • Top up dapat dilakukan jika pinjaman sebelumnya telah lunas minimal <strong>80%</strong><br />
-            • Angsuran akan dipotong otomatis dari gaji setiap bulan setelah pinjaman disetujui dan dicairkan
-          </p>
         </div>
       </div>
     </motion.div>

@@ -16,12 +16,16 @@ class SettingController extends Controller
     {
         try {
             // Get from cache or return default
-            $settings = Cache::get('loan_settings', [
-                'max_tenor_months' => 10,
-                'default_interest_rate' => 1,
-                'min_loan_amount' => 100000,
-                'max_loan_amount' => 50000000
-            ]);
+            $settings = Cache::get('loan_settings');
+            
+            if (!$settings) {
+                $settings = [
+                    'max_tenor_months' => 10,
+                    'default_interest_rate' => 1,
+                    'min_loan_amount' => 100000,
+                    'max_loan_amount' => 10000000
+                ];
+            }
             
             return response()->json([
                 'success' => true,
@@ -37,7 +41,7 @@ class SettingController extends Controller
                     'max_tenor_months' => 10,
                     'default_interest_rate' => 1,
                     'min_loan_amount' => 100000,
-                    'max_loan_amount' => 50000000
+                    'max_loan_amount' => 10000000
                 ]
             ]);
         }
@@ -50,10 +54,10 @@ class SettingController extends Controller
     {
         try {
             $validated = $request->validate([
-                'max_tenor_months' => 'required|integer|min:1|max:60',
+                'max_tenor_months' => 'required|integer|min:1|max:12',
                 'default_interest_rate' => 'required|numeric|min:0|max:100',
-                'min_loan_amount' => 'required|numeric|min:0',
-                'max_loan_amount' => 'required|numeric|min:0'
+                'min_loan_amount' => 'required|numeric|min:50000',
+                'max_loan_amount' => 'required|numeric|min:1000000'
             ]);
             
             // Store in cache for 30 days
