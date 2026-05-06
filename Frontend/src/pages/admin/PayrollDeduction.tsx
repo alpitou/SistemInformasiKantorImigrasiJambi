@@ -46,13 +46,14 @@ interface Member {
   join_date: string;
   already_processed_savings: boolean;
   has_active_loan: boolean;
-  active_loans?: ActiveLoan[];  // Array untuk multiple loans
-  loan_installment?: number;     // Legacy: single loan installment
-  loan_remaining?: number;       // Legacy: single loan remaining
-  total_loan_installment: number;  // Total angsuran dari semua pinjaman aktif
-  total_loan_remaining: number;     // Total sisa dari semua pinjaman aktif
+  active_loans?: ActiveLoan[];
+  loan_installment?: number;
+  loan_remaining?: number;
+  total_loan_installment: number;
+  total_loan_remaining: number;
   loan_already_processed: boolean;
   savings: MemberSaving[];
+  total_saving_balance?: number;
 }
 
 interface PayrollHistoryItem {
@@ -152,9 +153,7 @@ const PayrollDeduction: React.FC = () => {
     }
   }, [axiosInstance]);
 
-  // Helper function untuk mendapatkan active loans dari response API
   const getActiveLoans = useCallback((member: any): ActiveLoan[] => {
-    // Cek apakah response menggunakan active_loans array (format baru)
     if (member.active_loans && Array.isArray(member.active_loans) && member.active_loans.length > 0) {
       return member.active_loans.map((loan: any) => ({
         id: loan.id,
@@ -167,7 +166,6 @@ const PayrollDeduction: React.FC = () => {
       }));
     }
     
-    // Fallback: jika masih menggunakan format single loan (loan_installment)
     if (member.has_active_loan && member.loan_installment && member.loan_installment > 0) {
       return [{
         id: member.id,
@@ -183,22 +181,21 @@ const PayrollDeduction: React.FC = () => {
     return [];
   }, []);
 
-  // Helper function untuk mendapatkan total angsuran pinjaman
   const getTotalLoanInstallment = useCallback((member: any): number => {
-    // Jika sudah ada total_loan_installment dari API
     if (member.total_loan_installment !== undefined && member.total_loan_installment > 0) {
       return member.total_loan_installment;
     }
-    
-    // Hitung dari active_loans
     const loans = getActiveLoans(member);
     return loans.reduce((sum, loan) => sum + loan.monthly_installment, 0);
   }, [getActiveLoans]);
 
-  // Helper function untuk mendapatkan detail loans
   const getMemberLoans = useCallback((member: any): ActiveLoan[] => {
     return getActiveLoans(member);
   }, [getActiveLoans]);
+
+  const calculateTotalSavingBalance = useCallback((savings: MemberSaving[]): number => {
+    return savings.reduce((total, saving) => total + (saving.current_balance || 0), 0);
+  }, []);
 
   const fetchMembers = useCallback(async () => {
     setIsLoading(true);
@@ -210,18 +207,18 @@ const PayrollDeduction: React.FC = () => {
       console.log('API Response members:', response.data);
       
       if (response.data.success) {
-        // Process members to ensure consistent data structure
         const processedMembers = response.data.data.map((member: any) => {
           const activeLoans = getActiveLoans(member);
           const totalLoanInstallment = getTotalLoanInstallment(member);
+          const totalSavingBalance = calculateTotalSavingBalance(member.savings || []);
           
           return {
             ...member,
             active_loans: activeLoans,
             total_loan_installment: totalLoanInstallment,
             total_loan_remaining: activeLoans.reduce((sum, loan) => sum + loan.remaining_balance, 0),
-            // Pastikan has_active_loan konsisten
-            has_active_loan: activeLoans.length > 0 || member.has_active_loan
+            has_active_loan: activeLoans.length > 0 || member.has_active_loan,
+            total_saving_balance: totalSavingBalance
           };
         });
         
@@ -259,7 +256,7 @@ const PayrollDeduction: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [axiosInstance, addNotification, selectedMonth, getActiveLoans, getTotalLoanInstallment]);
+  }, [axiosInstance, addNotification, selectedMonth, getActiveLoans, getTotalLoanInstallment, calculateTotalSavingBalance]);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -328,7 +325,6 @@ const PayrollDeduction: React.FC = () => {
 
   const getMemberLoanTotal = useCallback((member: Member) => {
     if (!processLoanInstallments || member.loan_already_processed) return 0;
-    // Gunakan total_loan_installment yang sudah dihitung
     return member.total_loan_installment || 0;
   }, [processLoanInstallments]);
 
@@ -751,6 +747,7 @@ const PayrollDeduction: React.FC = () => {
             const memberTotalWithLoan = memberSavingsTotal + (hasLoanDeduction ? memberLoanTotal : 0);
             const memberLoans = getMemberLoansList(member);
             const loanCount = memberLoans.length;
+            const totalSavingBalance = member.total_saving_balance || 0;
             
             return (
               <div key={member.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
@@ -784,22 +781,33 @@ const PayrollDeduction: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Bagian Kanan - Total Simpanan dan Total Potongan */}
                     <div className="text-right">
-                      <div className="text-sm text-gray-500">Total Potongan Bulan Ini</div>
-                      <div className="text-xl font-bold text-emerald-600">{formatCurrency(memberTotalWithLoan)}</div>
-                      {memberLoanTotal > 0 && (
-                        <div className="text-[10px] text-amber-600">
-                          Angsuran: {formatCurrency(memberLoanTotal)}
-                        </div>
-                      )}
+                      {/* Total Simpanan (ditambahkan) */}
+                      <div>
+                        <div className="text-xs text-gray-500">Total Simpanan</div>
+                        <div className="text-lg font-bold text-blue-600">{formatCurrency(totalSavingBalance)}</div>
+                      </div>
+                      {/* Total Potongan */}
+                      <div className="mt-1">
+                        <div className="text-xs text-gray-500">Total Potongan Bulan Ini</div>
+                        <div className="text-md font-bold text-emerald-600">{formatCurrency(memberTotalWithLoan)}</div>
+                        {memberLoanTotal > 0 && (
+                          <div className="text-[10px] text-amber-600">
+                            Angsuran: {formatCurrency(memberLoanTotal)}
+                          </div>
+                        )}
+                      </div>
                     </div>
+                    
                     <div className="text-gray-400">
                       {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                     </div>
                   </div>
                 </div>
                 
-                {/* Expanded Content */}
+                {/* Expanded Content - Tetap sama seperti semula */}
                 <AnimatePresence>
                   {isExpanded && (
                     <motion.div

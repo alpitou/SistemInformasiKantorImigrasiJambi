@@ -1,8 +1,11 @@
+// src/pages/Login.tsx
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Shield, Lock, Mail, Eye, EyeOff, ArrowRight, AlertCircle, Server, CheckCircle } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, ArrowRight, AlertCircle, Server, CheckCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+// Import logo dari folder assets/images
+import logo from '../assets/images/logo.png';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('admin@koperasi.com');
@@ -59,9 +62,10 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Background Blur Effects - Warna biru seperti PayrollDeduction */}
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/5 dark:bg-blue-600/10 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-400/5 dark:bg-blue-400/10 rounded-full blur-[120px]"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-imigrasi-primary/5 dark:bg-imigrasi-primary/10 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-700/5 dark:bg-blue-700/10 rounded-full blur-[120px]"></div>
       </div>
 
       <motion.div 
@@ -69,12 +73,17 @@ const LoginPage: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md relative z-10"
       >
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-600/30">
-            <Shield size={40} className="text-white" />
+        <div className="text-center -mt-17 mb-6">
+          {/* Logo Section - Diperbesar */}
+          <div className="w-70 h-70 mx-auto -mb-5">
+            <img 
+              src={logo} 
+              alt="Logo Koperasi Kantor Imigrasi Jambi" 
+              className="w-full h-full object-contain"
+            />
           </div>
-          <h1 className="text-3xl font-black text-blue-600 dark:text-white tracking-tight">SIMKOP-IM</h1>
-          <p className="text-gray-500 dark:text-gray-400 font-bold text-sm mt-2">Koperasi Kantor Imigrasi Jambi</p>
+          <h1 className="text-3xl font-black bg-gradient-to-r from-imigrasi-primary to-blue-700 bg-clip-text text-transparent tracking-tight -mt-15">KOPERASI KONSUMEN</h1>
+          <p className="text-gray-500 dark:text-gray-400 font-bold text-sm mt-2">Kantor Imigrasi Kelas I TPI Jambi</p>
         </div>
 
         {/* Connection Status */}
@@ -104,13 +113,13 @@ const LoginPage: React.FC = () => {
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-1 uppercase tracking-widest">Email</label>
               <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors" size={18} />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-imigrasi-primary transition-colors" size={18} />
                 <input 
                   type="email" 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Masukkan email..." 
-                  className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-blue-600 rounded-2xl outline-none transition-all dark:text-white"
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-primary rounded-2xl outline-none transition-all dark:text-white"
                   required
                 />
               </div>
@@ -119,13 +128,13 @@ const LoginPage: React.FC = () => {
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-1 uppercase tracking-widest">Password</label>
               <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors" size={18} />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-imigrasi-primary transition-colors" size={18} />
                 <input 
                   type={showPassword ? 'text' : 'password'} 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Masukkan password..." 
-                  className="w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-blue-600 rounded-2xl outline-none transition-all dark:text-white"
+                  className="w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-primary rounded-2xl outline-none transition-all dark:text-white"
                   required
                 />
                 <button 
@@ -155,7 +164,7 @@ const LoginPage: React.FC = () => {
             <button 
               type="submit" 
               disabled={isLoading || connectionStatus !== 'connected'}
-              className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-4 bg-gradient-to-r from-imigrasi-primary to-blue-700 text-white font-black rounded-2xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-xl shadow-imigrasi-primary/20 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
@@ -170,17 +179,14 @@ const LoginPage: React.FC = () => {
               )}
             </button>
           </form>
-
-          <div className="mt-8 pt-8 border-t border-gray-100 dark:border-neutral-700 text-center">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Demo Login:</p>
-            <p className="text-[11px] font-mono text-gray-600 dark:text-gray-400">Email: admin@koperasi.com</p>
-            <p className="text-[11px] font-mono text-gray-600 dark:text-gray-400">Password: password123</p>
-          </div>
         </div>
 
         <div className="mt-8 text-center">
           <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-bold">
             &copy; 2026 Kantor Imigrasi Kelas I TPI Jambi
+          </p>
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-bold mt-1">
+            Muhammad Alfito | Solihin
           </p>
         </div>
       </motion.div>
