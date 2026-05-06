@@ -186,7 +186,7 @@ const LoginPage: React.FC = () => {
             &copy; 2026 Kantor Imigrasi Kelas I TPI Jambi
           </p>
           <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-bold mt-1">
-            Muhammad Alfito | Solihin
+            Muhammad Alfito Priananda | Solihin
           </p>
         </div>
       </motion.div>

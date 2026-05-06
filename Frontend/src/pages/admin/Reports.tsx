@@ -467,7 +467,7 @@ const ReportsPage: React.FC = () => {
 
       // Details header
       csvContent.push(['DETAIL TRANSAKSI']);
-      csvContent.push(['No', 'Tanggal', 'Jenis Transaksi', 'Kategori', 'Deskripsi', 'Metode', 'Jumlah (Rp)']);
+      csvContent.push(['No', 'Tanggal', 'Jenis Transaksi', 'Kategori', 'Deskripsi', 'Jumlah (Rp)']);
 
       // Data rows
       let no = 1;
@@ -879,10 +879,10 @@ const ReportsPage: React.FC = () => {
             <button
               onClick={handleExportPDF}
               disabled={isExporting || transactions.length === 0 || isLoading}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-imigrasi-primary text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-800 transition-colors disabled:opacity-50"
             >
               {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
-              Cetak PDF
+              Ekspor PDF
             </button>
           </div>
         </div>
@@ -890,7 +890,7 @@ const ReportsPage: React.FC = () => {
 
       {/* Summary Cards - 4 Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 text-white">
+        <div className="bg-imigrasi-primary from-blue-500 to-blue-600 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs opacity-80">Total Pendapatan</p>
@@ -902,7 +902,7 @@ const ReportsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl p-4 text-white">
+        <div className="bg-imigrasi-primary from-emerald-500 to-emerald-600 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs opacity-80">Setoran Simpanan</p>
@@ -914,7 +914,7 @@ const ReportsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl p-4 text-white">
+        <div className="bg-imigrasi-primary from-amber-500 to-amber-600 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs opacity-80">Angsuran Pinjaman</p>
@@ -926,7 +926,7 @@ const ReportsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-4 text-white">
+        <div className="bg-imigrasi-primary from-purple-500 to-purple-600 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs opacity-80">Pemasukan Kantin</p>
@@ -1042,7 +1042,6 @@ const ReportsPage: React.FC = () => {
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Tanggal</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Jenis</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Deskripsi</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Metode</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Jumlah</th>
                 </tr>
               </thead>
