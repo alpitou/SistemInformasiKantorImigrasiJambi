@@ -1,17 +1,17 @@
 // src/pages/admin/SavingsVerification.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
-  RefreshCw, 
-  User, 
-  Wallet, 
-  Eye, 
-  FileText, 
-  Search, 
-  Filter, 
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  RefreshCw,
+  User,
+  Wallet,
+  Eye,
+  FileText,
+  Search,
+  Filter,
   TrendingUp,
   History,
   Download
@@ -126,7 +126,7 @@ const SavingsVerification: React.FC = () => {
         );
         setPendingSavings(pending);
         setFilteredSavings(pending);
-        
+
         const total = pending.reduce((sum: number, saving: PendingSaving) => {
           const amount = Number(saving.amount) || 0;
           return sum + amount;
@@ -150,12 +150,12 @@ const SavingsVerification: React.FC = () => {
       const response = await axiosInstance.get('/savings');
       if (response.data && response.data.data) {
         const verified = response.data.data.filter(
-          (saving: any) => 
-            saving.transaction_type === 'deposit' && 
+          (saving: any) =>
+            saving.transaction_type === 'deposit' &&
             saving.verification_status === 'verified' &&
             saving.type?.name?.toLowerCase() === 'sukarela'
         );
-        
+
         // Map data untuk history
         const mappedHistory: VerifiedHistory[] = verified.map((item: any) => ({
           id: item.id,
@@ -173,9 +173,9 @@ const SavingsVerification: React.FC = () => {
           verifier: item.verifier,
           description: item.description || ''
         }));
-        
+
         setVerifiedHistory(mappedHistory);
-        
+
         const total = mappedHistory.reduce((sum: number, saving: VerifiedHistory) => {
           const amount = Number(saving.amount) || 0;
           return sum + amount;
@@ -235,13 +235,13 @@ const SavingsVerification: React.FC = () => {
 
   const handleBulkVerify = async () => {
     if (filteredSavings.length === 0) return;
-    
+
     if (!window.confirm(`Verifikasi ${filteredSavings.length} setoran sekaligus?`)) return;
-    
+
     setIsLoading(true);
     let successCount = 0;
     let failCount = 0;
-    
+
     for (const saving of filteredSavings) {
       try {
         await axiosInstance.put(`/savings/${saving.id}/verify`);
@@ -251,13 +251,13 @@ const SavingsVerification: React.FC = () => {
         console.error(`Failed to verify saving ${saving.id}:`, error);
       }
     }
-    
+
     addNotification({
       title: 'Verifikasi Massal Selesai',
       message: `${successCount} setoran berhasil diverifikasi, ${failCount} gagal.`,
       type: successCount > 0 ? 'success' : 'error'
     });
-    
+
     await fetchPendingSavings();
     await fetchVerifiedHistory();
     setIsLoading(false);
@@ -276,7 +276,7 @@ const SavingsVerification: React.FC = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       addNotification({
         title: 'Berhasil',
         message: 'Riwayat verifikasi berhasil diexport',
@@ -304,12 +304,12 @@ const SavingsVerification: React.FC = () => {
       item.amount,
       item.verifier?.name || '-'
     ]);
-    
+
     return [headers, ...rows].map(row => row.join(',')).join('\n');
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="space-y-8"
@@ -318,13 +318,13 @@ const SavingsVerification: React.FC = () => {
       <AnimatePresence>
         {selectedImage && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               className="relative max-w-4xl w-full"
             >
-              <button 
+              <button
                 onClick={() => setSelectedImage(null)}
                 className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
               >
@@ -349,14 +349,14 @@ const SavingsVerification: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={() => setShowHistory(!showHistory)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
           >
             <History size={18} />
             {showHistory ? 'Tutup Riwayat' : 'Lihat Riwayat'}
           </button>
-          <button 
+          <button
             onClick={handleExportCSV}
             disabled={isExporting}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50"
@@ -364,7 +364,7 @@ const SavingsVerification: React.FC = () => {
             {isExporting ? <RefreshCw size={18} className="animate-spin" /> : <Download size={18} />}
             Export CSV
           </button>
-          <button 
+          <button
             onClick={() => { fetchPendingSavings(); fetchVerifiedHistory(); }}
             className="p-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl text-gray-500 hover:text-imigrasi-primary transition-colors"
             disabled={isLoading}
@@ -372,7 +372,7 @@ const SavingsVerification: React.FC = () => {
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
           </button>
           {filteredSavings.length > 1 && (
-            <button 
+            <button
               onClick={handleBulkVerify}
               disabled={isLoading}
               className="flex items-center gap-2 px-6 py-2 bg-blue-500 text-white rounded-xl text-sm font-bold hover:bg-blue-600 transition-colors shadow-lg"
@@ -397,7 +397,7 @@ const SavingsVerification: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="glass-card p-6 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -409,7 +409,7 @@ const SavingsVerification: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="glass-card p-6 rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -527,7 +527,7 @@ const SavingsVerification: React.FC = () => {
             </div>
             <h3 className="text-lg font-bold text-gray-900 dark:text-white">Tidak Ada Setoran Menunggu Verifikasi</h3>
             <p className="text-sm text-gray-500 mt-2">
-              {searchTerm 
+              {searchTerm
                 ? 'Tidak ditemukan setoran yang sesuai dengan pencarian Anda.'
                 : 'Semua setoran sukarela sudah diverifikasi.'}
             </p>
@@ -535,7 +535,7 @@ const SavingsVerification: React.FC = () => {
         ) : (
           <AnimatePresence mode="popLayout">
             {filteredSavings.map((saving) => (
-              <motion.div 
+              <motion.div
                 key={saving.id}
                 layout
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -545,10 +545,10 @@ const SavingsVerification: React.FC = () => {
               >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                   <div className="flex items-center gap-4">
-                    <img 
-                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${saving.user?.name || 'User'}`} 
-                      alt="" 
-                      className="w-14 h-14 rounded-2xl border-2 border-gray-100 dark:border-neutral-700" 
+                    <img
+                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${saving.user?.name || 'User'}`}
+                      alt=""
+                      className="w-14 h-14 rounded-2xl border-2 border-gray-100 dark:border-neutral-700"
                     />
                     <div>
                       <h4 className="font-bold text-gray-900 dark:text-white text-lg">{saving.user?.name || 'Unknown'}</h4>
@@ -584,7 +584,7 @@ const SavingsVerification: React.FC = () => {
 
                 <div className="mt-6 pt-6 border-t border-gray-100 dark:border-neutral-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex flex-wrap items-center gap-3">
-                    <button 
+                    <button
                       onClick={() => handleViewProof(saving.proof_image)}
                       className="px-4 py-2 bg-blue-500/10 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-500 hover:text-white transition-all flex items-center gap-2"
                     >
@@ -597,9 +597,9 @@ const SavingsVerification: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="flex items-center gap-3">
-                    <button 
+                    <button
                       onClick={() => handleVerify(saving.id)}
                       disabled={verifyingId === saving.id}
                       className="px-6 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 disabled:opacity-70"

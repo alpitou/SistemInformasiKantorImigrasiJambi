@@ -1,8 +1,8 @@
 // src/pages/admin/WithdrawalApprovals.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  HandCoins, TrendingUp, Calendar, RefreshCw, CheckCircle2, Clock, 
+import {
+  HandCoins, TrendingUp, Calendar, RefreshCw, CheckCircle2, Clock,
   AlertCircle, X, Eye, FileText, Wallet, Building2, CreditCard,
   User, Loader2, Search, Filter, DollarSign, MessageSquare,
   Check, Ban, Send, ChevronDown, ChevronUp, Info
@@ -107,7 +107,7 @@ const WithdrawalApprovals: React.FC = () => {
   useEffect(() => {
     let filtered = [...requests];
     if (searchTerm) {
-      filtered = filtered.filter(r => 
+      filtered = filtered.filter(r =>
         r.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         r.user?.nip?.includes(searchTerm) ||
         r.account_name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -159,17 +159,17 @@ const WithdrawalApprovals: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const response = await api.post(`/withdrawals/${selectedRequest.id}/disburse`, { 
-        notes: disbursementNotes 
+      const response = await api.post(`/withdrawals/${selectedRequest.id}/disburse`, {
+        notes: disbursementNotes
       });
-      
+
       console.log('Disburse response:', response.data);
-      
+
       if (response.data.success) {
-        addNotification({ 
-          title: 'Berhasil', 
-          message: response.data.message || 'Dana berhasil dicairkan', 
-          type: 'success' 
+        addNotification({
+          title: 'Berhasil',
+          message: response.data.message || 'Dana berhasil dicairkan',
+          type: 'success'
         });
         setDisbursementNotes('');
         setShowDisburseModal(false);
@@ -178,18 +178,18 @@ const WithdrawalApprovals: React.FC = () => {
         await fetchRequests();
         await fetchStats();
       } else {
-        addNotification({ 
-          title: 'Gagal', 
-          message: response.data.message || 'Gagal melakukan pencairan', 
-          type: 'error' 
+        addNotification({
+          title: 'Gagal',
+          message: response.data.message || 'Gagal melakukan pencairan',
+          type: 'error'
         });
       }
     } catch (error: any) {
       console.error('Disburse error:', error);
-      addNotification({ 
-        title: 'Gagal', 
-        message: error.response?.data?.message || 'Terjadi kesalahan saat mencairkan dana', 
-        type: 'error' 
+      addNotification({
+        title: 'Gagal',
+        message: error.response?.data?.message || 'Terjadi kesalahan saat mencairkan dana',
+        type: 'error'
       });
     } finally {
       setIsLoading(false);
@@ -224,7 +224,7 @@ const WithdrawalApprovals: React.FC = () => {
     const userStr = localStorage.getItem('user');
     let userRole = '';
     try { const parsed = userStr ? JSON.parse(userStr) : null; userRole = parsed?.role?.name || ''; } catch { userRole = ''; }
-    
+
     if (userRole === 'bendahara') {
       if (request.status === 'pending_treasurer') {
         return (
@@ -251,7 +251,7 @@ const WithdrawalApprovals: React.FC = () => {
         );
       }
     }
-    
+
     if (userRole === 'ketua' && request.status === 'pending_chairman') {
       return (
         <div className="flex gap-2">
@@ -264,7 +264,7 @@ const WithdrawalApprovals: React.FC = () => {
         </div>
       );
     }
-    
+
     return (
       <button onClick={() => { setSelectedRequest(request); setShowDetailModal(true); }} className="px-3 py-1.5 text-blue-600 bg-blue-50 rounded-lg text-xs font-medium hover:bg-blue-100">
         <Eye size={12} className="inline mr-1" />Detail
@@ -338,127 +338,140 @@ const WithdrawalApprovals: React.FC = () => {
       </div>
 
       {/* Filter Section */}
-      <div className="bg-white dark:bg-neutral-800 rounded-xl border p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Cari nama anggota, NIP, atau rekening tujuan..." 
-              value={searchTerm} 
-              onChange={(e) => setSearchTerm(e.target.value)} 
-              className="w-full pl-9 pr-3 py-2 bg-gray-50 border rounded-lg text-sm focus:border-imigrasi-primary outline-none" 
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-gray-400" />
-            <select 
-              value={statusFilter} 
-              onChange={(e) => setStatusFilter(e.target.value)} 
-              className="px-3 py-2 bg-gray-50 border rounded-lg text-sm focus:border-imigrasi-primary outline-none"
-            >
-              <option value="all">Semua Status</option>
-              <option value="pending_treasurer">Menunggu Bendahara</option>
-              <option value="pending_chairman">Menunggu Ketua</option>
-              <option value="approved">Siap Cairkan</option>
-              <option value="disbursed">Dicairkan</option>
-              <option value="rejected">Ditolak</option>
-            </select>
-          </div>
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1 relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Cari nama anggota, NIP, atau rekening tujuan..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-11 pr-4 py-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl focus:border-imigrasi-primary outline-none transition-colors dark:text-white"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Filter size={16} className="text-gray-400" />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full pl-11 pr-4 py-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl focus:border-imigrasi-primary outline-none transition-colors dark:text-white"
+          >
+            <option value="all">Semua Status</option>
+            <option value="pending_treasurer">Menunggu Bendahara</option>
+            <option value="pending_chairman">Menunggu Ketua</option>
+            <option value="approved">Siap Cairkan</option>
+            <option value="disbursed">Dicairkan</option>
+            <option value="rejected">Ditolak</option>
+          </select>
         </div>
       </div>
 
       {/* Requests Table */}
-      <div className="bg-white dark:bg-neutral-800 rounded-xl border overflow-hidden">
-        <div className="px-5 py-4 border-b">
-          <h3 className="font-bold">Daftar Pengajuan Penarikan</h3>
-          <p className="text-xs text-gray-500 mt-1">Menampilkan {filteredRequests.length} dari {requests.length} pengajuan</p>
-        </div>
-        <div className="overflow-x-auto">
+      <div className="w-full">
+        <div className="glass-card p-12 rounded-3xl">
+          <div className="mb-8">
+            <h3 className="text-2xl font-bold text-gray-900">Daftar Pengajuan Penarikan</h3>
+            <p className="text-sm text-gray-500 mt-2">Menampilkan {filteredRequests.length} dari {requests.length} pengajuan</p>
+          </div>
           {isLoading && requests.length === 0 ? (
-            <div className="p-12 text-center">
-              <Loader2 className="animate-spin mx-auto text-imigrasi-primary" size={32} />
-              <p className="mt-4 text-gray-500">Memuat data...</p>
+            <div className="glass-card p-12 rounded-3xl text-center bg-white/50">
+              <div className="flex justify-center">
+                <Loader2 className="animate-spin text-blue-600" size={40} />
+              </div>
+              <p className="mt-6 text-gray-600 font-medium">Memuat data...</p>
             </div>
           ) : filteredRequests.length === 0 ? (
-            <div className="p-12 text-center">
-              <HandCoins size={40} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500">Belum ada pengajuan penarikan</p>
+            <div className="glass-card p-12 rounded-3xl text-center bg-white/50">
+              <div className="flex justify-center mb-6">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center">
+                  <HandCoins size={48} className="text-gray-300" />
+                </div>
+              </div>
+              <p className="text-gray-600 font-medium">Belum ada pengajuan penarikan</p>
+              <p className="text-sm text-gray-400 mt-2">Pengajuan penarikan akan muncul di sini</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr className="text-gray-500 text-xs uppercase tracking-wider">
-                  <th className="px-4 py-3 text-left">Tanggal</th>
-                  <th className="px-4 py-3 text-left">Anggota</th>
-                  <th className="px-4 py-3 text-left">Jenis Simpanan</th>
-                  <th className="px-4 py-3 text-right">Jumlah</th>
-                  <th className="px-4 py-3 text-left">Rekening Tujuan</th>
-                  <th className="px-4 py-3 text-center">Status</th>
-                  <th className="px-4 py-3 text-center">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredRequests.map((request) => (
-                  <React.Fragment key={request.id}>
-                    <tr className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-xs text-gray-500">{formatDate(request.created_at)}</td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium">{request.user?.name}</p>
-                        <p className="text-[10px] text-gray-400">NIP: {request.user?.nip || '-'}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="px-2 py-1 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700">{request.saving_type}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-amber-600">{formatCurrency(request.amount)}</td>
-                      <td className="px-4 py-3">
-                        <p className="text-xs">{request.bank_name}</p>
-                        <p className="text-[10px] text-gray-400">{request.account_number}</p>
-                      </td>
-                      <td className="px-4 py-3 text-center">{getStatusBadge(request.status)}</td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          {getActionButtons(request)}
-                          <button onClick={() => toggleExpand(request.id)} className="p-1.5 text-gray-400">
-                            {expandedRows.has(request.id) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                          </button>
-                        </div>
-                      </td>
+            <div className="glass-card rounded-3xl overflow-hidden bg-white/80 backdrop-blur-sm shadow-lg">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Tanggal</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Anggota</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Jenis Simpanan</th>
+                      <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Jumlah</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Rekening Tujuan</th>
+                      <th className="px-6 py-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Aksi</th>
                     </tr>
-                    {expandedRows.has(request.id) && (
-                      <tr className="bg-gray-50">
-                        <td colSpan={7} className="px-4 py-3">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                            <div>
-                              <p className="font-bold text-gray-500">Alasan Penarikan</p>
-                              <p className="mt-1">{request.reason}</p>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredRequests.map((request) => (
+                      <React.Fragment key={request.id}>
+                        <tr className="hover:bg-blue-50/50 transition-colors">
+                          <td className="px-6 py-4 text-xs text-gray-500 font-medium">{formatDate(request.created_at)}</td>
+                          <td className="px-6 py-4">
+                            <p className="font-semibold text-gray-900">{request.user?.name}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">NIP: {request.user?.nip || '-'}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-purple-100 to-purple-50 text-purple-700 border border-purple-200">{request.saving_type}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right font-bold text-lg text-amber-600">{formatCurrency(request.amount)}</td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-medium text-gray-900">{request.bank_name}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{request.account_number}</p>
+                          </td>
+                          <td className="px-6 py-4 text-center">{getStatusBadge(request.status)}</td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              {getActionButtons(request)}
+                              <button onClick={() => toggleExpand(request.id)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-700">
+                                {expandedRows.has(request.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                              </button>
                             </div>
-                            {request.treasurer_approved_by && (
-                              <div>
-                                <p className="font-bold text-gray-500">Disetujui Bendahara</p>
-                                <p className="mt-1 text-green-600">{request.treasurerApprover?.name} - {formatDate(request.treasurer_approved_at)}</p>
+                          </td>
+                        </tr>
+                        {expandedRows.has(request.id) && (
+                          <tr className="bg-gradient-to-r from-blue-50/30 to-indigo-50/30">
+                            <td colSpan={7} className="px-6 py-6">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="glass-card p-4 rounded-xl bg-white/60">
+                                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Alasan Penarikan</p>
+                                  <p className="text-sm text-gray-900">{request.reason}</p>
+                                </div>
+                                {request.treasurer_approved_by && (
+                                  <div className="glass-card p-4 rounded-xl bg-green-50/60">
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Disetujui Bendahara</p>
+                                    <p className="text-sm font-semibold text-green-700">{request.treasurerApprover?.name}</p>
+                                    <p className="text-xs text-green-600 mt-1">{formatDate(request.treasurer_approved_at)}</p>
+                                  </div>
+                                )}
+                                {request.chairman_approved_by && (
+                                  <div className="glass-card p-4 rounded-xl bg-green-50/60">
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Disetujui Ketua</p>
+                                    <p className="text-sm font-semibold text-green-700">{request.chairmanApprover?.name}</p>
+                                    <p className="text-xs text-green-600 mt-1">{formatDate(request.chairman_approved_at)}</p>
+                                  </div>
+                                )}
+                                {request.disbursed_by && (
+                                  <div className="glass-card p-4 rounded-xl bg-emerald-50/60">
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Dicairkan oleh</p>
+                                    <p className="text-sm font-semibold text-emerald-700">{request.disburser?.name}</p>
+                                    <p className="text-xs text-emerald-600 mt-1">{formatDate(request.disbursed_at)}</p>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            {request.chairman_approved_by && (
-                              <div>
-                                <p className="font-bold text-gray-500">Disetujui Ketua</p>
-                                <p className="mt-1 text-green-600">{request.chairmanApprover?.name} - {formatDate(request.chairman_approved_at)}</p>
-                              </div>
-                            )}
-                            {request.disbursed_by && (
-                              <div>
-                                <p className="font-bold text-gray-500">Dicairkan oleh</p>
-                                <p className="mt-1 text-emerald-600">{request.disburser?.name} - {formatDate(request.disbursed_at)}</p>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -468,10 +481,10 @@ const WithdrawalApprovals: React.FC = () => {
         {showDetailModal && selectedRequest && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDetailModal(false)} />
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }} 
-              exit={{ scale: 0.95, opacity: 0 }} 
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
               className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
               <div className="sticky top-0 z-10 p-5 border-b bg-gradient-to-r from-imigrasi-primary to-blue-800 text-white">
@@ -513,7 +526,7 @@ const WithdrawalApprovals: React.FC = () => {
                     <div className="col-span-2"><p className="text-gray-500">Pemilik</p><p>{selectedRequest.account_name}</p></div>
                   </div>
                 </div>
-                
+
                 {/* Approval Actions */}
                 <div className="space-y-3">
                   {selectedRequest.status === 'pending_treasurer' && (
@@ -598,13 +611,13 @@ const WithdrawalApprovals: React.FC = () => {
           <div>
             <h4 className="font-bold text-blue-900 text-sm">Informasi</h4>
             <p className="text-xs text-blue-800">
-              Status <strong>"Siap Cairkan"</strong> menandakan penarikan sudah disetujui oleh Ketua dan siap untuk dicairkan oleh Bendahara. 
+              Status <strong>"Siap Cairkan"</strong> menandakan penarikan sudah disetujui oleh Ketua dan siap untuk dicairkan oleh Bendahara.
               Setelah pencairan, saldo simpanan anggota akan berkurang secara otomatis.
             </p>
           </div>
         </div>
       </div>
-    </motion.div>
+    </motion.div >
   );
 };
 

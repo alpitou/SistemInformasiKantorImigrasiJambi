@@ -88,7 +88,7 @@ const LoginPage: React.FC = () => {
         {connectionStatus === 'connected' && (
           <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl flex items-center gap-3">
             <CheckCircle size={16} className="text-green-600" />
-            <p className="text-xs font-medium text-green-700 dark:text-green-400">Terhubung ke server backend</p>
+            <p className="text-xs font-medium text-green-700 dark:text-green-400">Terhubung ke server</p>
           </div>
         )}
         
