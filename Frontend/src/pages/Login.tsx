@@ -4,7 +4,6 @@ import { motion } from 'motion/react';
 import { Lock, Mail, Eye, EyeOff, ArrowRight, AlertCircle, Server, CheckCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-// Import logo dari folder assets/images
 import logo from '../assets/images/logo.png';
 
 const LoginPage: React.FC = () => {
