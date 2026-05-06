@@ -45,6 +45,7 @@ interface MemberData {
   id: number;
   name: string;
   nip: string;
+  nik: string;
   unit: string;
   join_date: string;
   already_processed_savings: boolean;
@@ -62,6 +63,7 @@ interface MemberDeduction {
   id: number;
   name: string;
   nip: string;
+  nik: string;
   unit: string;
   pokok: number;
   wajib: number;
@@ -112,6 +114,12 @@ const DeductionExport: React.FC = () => {
     will_deduct_count: 0,
     loan_member_count: 0
   });
+
+  const getIdentity = (item: MemberDeduction) => {
+    if (item.nip && item.nip !== '-') return item.nip;
+    if (item.nik && item.nik !== '-') return item.nik;
+    return '-';
+  };
 
   const token = localStorage.getItem('token');
   const axiosInstance = useMemo(() => {
@@ -194,7 +202,7 @@ const DeductionExport: React.FC = () => {
 
       if (response.data.success) {
         const members: MemberData[] = response.data.data;
-        
+
         let totalPokok = 0;
         let totalWajib = 0;
         let totalLoan = 0;
@@ -205,11 +213,11 @@ const DeductionExport: React.FC = () => {
           // Cari jenis simpanan Pokok dan Wajib
           const pokokSaving = member.savings?.find((s: MemberSaving) => s.type_name === 'Pokok');
           const wajibSaving = member.savings?.find((s: MemberSaving) => s.type_name === 'Wajib');
-          
+
           let pokok = 0;
           let wajib = 0;
           let willBeDeducted = false;
-          
+
           // Hitung potongan Pokok (hanya jika belum diproses dan belum lunas)
           if (pokokSaving && pokokSaving.is_applicable && !pokokSaving.is_processed) {
             pokok = pokokSaving.default_amount || 100000;
@@ -218,23 +226,23 @@ const DeductionExport: React.FC = () => {
             }
             if (pokok > 0) willBeDeducted = true;
           }
-          
+
           // Hitung potongan Wajib (hanya jika belum diproses)
           if (wajibSaving && wajibSaving.is_applicable && !wajibSaving.is_processed) {
             wajib = parseFloat(String(wajibSaving.default_amount)) || 50000;
             if (wajib > 0) willBeDeducted = true;
           }
-          
+
           // Dapatkan active loans
           const activeLoans = getActiveLoansFromMember(member);
           const loanInstallment = getTotalLoanInstallment(member);
-          
+
           // Hitung jumlah anggota yang punya pinjaman (unique)
           if (activeLoans.length > 0 && loanInstallment > 0 && !member.loan_already_processed) {
             loanMemberCount++;
             if (loanInstallment > 0) willBeDeducted = true;
           }
-          
+
           // Siapkan detail loan untuk ditampilkan
           const loanDetails = activeLoans.map(loan => ({
             id: loan.id,
@@ -244,20 +252,21 @@ const DeductionExport: React.FC = () => {
             installments_paid: loan.installments_paid || 0,
             tenor_months: loan.tenor_months
           }));
-          
+
           const total = pokok + wajib + (member.loan_already_processed ? 0 : loanInstallment);
-          
+
           totalPokok += pokok;
           totalWajib += wajib;
           totalLoan += (member.loan_already_processed ? 0 : loanInstallment);
           if (willBeDeducted) willDeductCount++;
-          
+
           console.log(`Member ${member.name}: Pokok=${pokok}, Wajib=${wajib}, Loan=${loanInstallment}, Total=${total}, Akan Dipotong=${willBeDeducted}`);
-          
+
           return {
             id: member.id,
             name: member.name,
-            nip: member.nip || '-',
+            nip: member.nip,
+            nik: member.nik,
             unit: member.unit || '-',
             pokok: pokok,
             wajib: wajib,
@@ -270,13 +279,13 @@ const DeductionExport: React.FC = () => {
             loan_details: loanDetails.length > 0 ? loanDetails : undefined
           };
         });
-        
+
         const totalAll = totalPokok + totalWajib + totalLoan;
-        
+
         console.log('Total members:', deductionData.length);
         console.log('Members to be deducted:', willDeductCount);
         console.log('Totals:', { totalPokok, totalWajib, totalLoan, totalAll });
-        
+
         setDeductions(deductionData);
         setSummary({
           total_pokok: totalPokok,
@@ -288,7 +297,7 @@ const DeductionExport: React.FC = () => {
           will_deduct_count: willDeductCount,
           loan_member_count: loanMemberCount
         });
-        
+
         addNotification({
           title: 'Data Dimuat',
           message: `Total ${deductionData.length} anggota, ${willDeductCount} anggota akan dipotong`,
@@ -337,6 +346,7 @@ const DeductionExport: React.FC = () => {
   const filteredDeductions = deductions.filter(d =>
     d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     d.nip.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.nik.toLowerCase().includes(searchTerm.toLowerCase()) ||
     d.unit.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -352,7 +362,7 @@ const DeductionExport: React.FC = () => {
       });
       return;
     }
-    
+
     setIsExporting(true);
     try {
       const monthName = getMonthName(selectedMonth);
@@ -448,7 +458,7 @@ const DeductionExport: React.FC = () => {
           <button
             onClick={handleExport}
             disabled={isExporting || exportableDeductions.length === 0}
-            className="flex items-center gap-2 px-6 py-2.5 bg-imigrasi-primary text-white rounded-xl text-sm font-semibold hover:bg-blue-800 transition-all shadow-md disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50"
           >
             {isExporting ? <RefreshCw size={18} className="animate-spin" /> : <Download size={18} />}
             {isExporting ? 'Mengekspor...' : 'Ekspor Format Bank'}
@@ -470,7 +480,7 @@ const DeductionExport: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-imigrasi-primary to-blue-700 rounded-2xl p-5 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -483,7 +493,7 @@ const DeductionExport: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-imigrasi-primary to-blue-700 rounded-2xl p-5 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -495,7 +505,7 @@ const DeductionExport: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-imigrasi-primary to-blue-700 rounded-2xl p-5 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -507,7 +517,7 @@ const DeductionExport: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-imigrasi-primary to-blue-700 rounded-2xl p-5 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -575,7 +585,7 @@ const DeductionExport: React.FC = () => {
             {exportableDeductions.length} anggota siap ekspor
           </div>
         </div>
-        
+
         <div className="overflow-x-auto">
           {isFetching ? (
             <div className="flex flex-col items-center justify-center py-16">
@@ -596,7 +606,7 @@ const DeductionExport: React.FC = () => {
                 <tr className="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
                   <th className="px-6 py-4 font-semibold w-12">No</th>
                   <th className="px-6 py-4 font-semibold">Anggota</th>
-                  <th className="px-6 py-4 font-semibold">NIP</th>
+                  <th className="px-6 py-4 font-semibold">NIP/NIK</th>
                   <th className="px-6 py-4 font-semibold">Unit</th>
                   <th className="px-6 py-4 font-semibold text-right">Pokok</th>
                   <th className="px-6 py-4 font-semibold text-right">Wajib</th>
@@ -616,15 +626,10 @@ const DeductionExport: React.FC = () => {
                         </div>
                         <div>
                           <span className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</span>
-                          {item.loan_count && item.loan_count > 1 && (
-                            <div className="text-[9px] text-amber-600 mt-0.5">
-                              {item.loan_count} Pinjaman Aktif
-                            </div>
-                          )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm font-mono text-gray-600 dark:text-gray-300">{item.nip}</td>
+                    <td className="px-6 py-4 text-sm font-mono text-gray-600 dark:text-gray-300">{getIdentity(item)}</td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{item.unit}</td>
                     <td className="px-6 py-4 text-sm text-right font-medium text-emerald-600 dark:text-emerald-400">
                       {item.pokok > 0 ? formatCurrency(item.pokok) : '-'}

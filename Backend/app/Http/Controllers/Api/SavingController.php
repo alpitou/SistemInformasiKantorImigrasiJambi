@@ -420,6 +420,7 @@ class SavingController extends Controller
                     'id' => $member->id,
                     'name' => $member->name,
                     'nip' => $member->nip ?? '-',
+                    'nik' => $member->nik ?? '-',
                     'unit' => $member->unit ?? '-',
                     'join_date' => $member->join_date,
                     'is_old_member' => $hasPaidPokok,
@@ -532,6 +533,7 @@ class SavingController extends Controller
                     'user_id' => $item->user_id,
                     'user_name' => $item->user ? $item->user->name : 'System',
                     'user_nip' => $item->user ? ($item->user->nip ?? '-') : '-',
+                    'user_nik' => $item->user ? ($item->user->nik ?? '-') : '-',
                     'user_unit' => $item->user ? ($item->user->unit ?? '-') : '-',
                     'saving_type' => $item->type ? $item->type->name : '-',
                     'amount' => (float) $item->amount,
@@ -739,6 +741,7 @@ class SavingController extends Controller
                     'type' => 'Simpanan ' . ($item->type ? $item->type->name : '-'),
                     'user_name' => $item->user ? $item->user->name : '-',
                     'user_nip' => $item->user ? ($item->user->nip ?? '-') : '-',
+                    'user_nik' => $item->user ? ($item->user->nik ?? '-') : '-',
                     'user_unit' => $item->user ? ($item->user->unit ?? '-') : '-',
                     'amount' => $item->amount,
                     'creator' => $item->creator ? $item->creator->name : '-'
@@ -760,7 +763,7 @@ class SavingController extends Controller
             }
             
             fwrite($handle, "\xEF\xBB\xBF");
-            fputcsv($handle, ['No', 'Tanggal', 'Jenis Transaksi', 'Nama Anggota', 'NIP', 'Unit', 'Jumlah (Rp)', 'Dibuat Oleh']);
+            fputcsv($handle, ['No', 'Tanggal', 'Jenis Transaksi', 'Nama Anggota', 'NIP/NIK', 'Unit', 'Jumlah (Rp)', 'Dibuat Oleh']);
             
             $no = 1;
             foreach ($allTransactions as $item) {
@@ -769,7 +772,7 @@ class SavingController extends Controller
                     date('d/m/Y H:i:s', strtotime($item['date'])),
                     $item['type'],
                     $item['user_name'],
-                    $item['user_nip'],
+                    $item['user_nip'] . '/' . $item['user_nik'],
                     $item['user_unit'],
                     number_format($item['amount'], 0, ',', '.'),
                     $item['creator']
@@ -1677,6 +1680,7 @@ class SavingController extends Controller
                     'id' => $member->id,
                     'name' => $member->name,
                     'nip' => $member->nip ?? '-',
+                    'nik' => $member->nik ?? '-',
                     'unit' => $member->unit ?? '-',
                     'join_date' => $member->join_date,
                     'already_processed_savings' => $alreadyProcessed,
@@ -1975,6 +1979,7 @@ class SavingController extends Controller
                     $deductions[] = [
                         'name' => $member->name,
                         'nip' => $member->nip ?? '-',
+                        'nik' => $member->nik ?? '-',
                         'unit' => $member->unit ?? '-',
                         'pokok' => $pokokAmount,
                         'wajib' => $wajibAmount,

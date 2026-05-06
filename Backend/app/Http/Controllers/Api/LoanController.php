@@ -234,6 +234,7 @@ class LoanController extends Controller
                 'purpose' => 'nullable|string',
                 'user_name' => 'required|string',
                 'user_nip' => 'nullable|string',
+                'user_nik' => 'nullable|string',
                 'user_unit' => 'nullable|string'
             ]);
 
@@ -252,6 +253,7 @@ class LoanController extends Controller
             $tempUser = new \stdClass();
             $tempUser->name = $request->user_name;
             $tempUser->nip = $request->user_nip;
+            $tempUser->nik = $request->user_nik;
             $tempUser->unit = $request->user_unit;
             $tempUser->address = '-';
             $tempUser->phone = '-';
@@ -542,7 +544,7 @@ class LoanController extends Controller
 
             <table class="data-table">
                 <tr><td><strong>Nama Lengkap</strong></td><td>: ' . htmlspecialchars($user->name) . '</td></tr>
-                <tr><td><strong>NIP / NIK</strong></td><td>: ' . htmlspecialchars($user->nip ?? '-') . '</td></tr>
+                <tr><td><strong>NIP / NIK</strong></td><td>: ' . htmlspecialchars($user->nip ?? $user->nik ?? '-') . '</td></tr>
                 <tr><td><strong>Unit Kerja</strong></td><td>: ' . htmlspecialchars($user->unit ?? '-') . '</td></tr>
                 <tr><td><strong>Alamat</strong></td><td>: ' . htmlspecialchars($user->address ?? '-') . '</td></tr>
               </table>
