@@ -18,7 +18,6 @@ class LoanController extends Controller
      */
     private function getLoanSettings()
     {
-        // Try to get from cache
         $settings = Cache::get('loan_settings');
         
         if (!$settings) {
@@ -62,7 +61,7 @@ class LoanController extends Controller
             
             $query = Loan::with(['user', 'treasurerApprover', 'chairmanApprover', 'disburser']);
 
-            $isArchive = $request->get('archive', false);
+            $isArchive = $request->input('archive', false);
             
             if ($isArchive) {
                 if (in_array($role, ['admin', 'ketua', 'bendahara', 'sekretaris'])) {
@@ -678,7 +677,8 @@ class LoanController extends Controller
             }
 
             $fileName = $loan->agreement_original_name ?? 'surat_perjanjian_pinjaman.pdf';
-            return Storage::disk('public')->download($loan->agreement_document, $fileName);
+            $filePath = Storage::disk('public')->path($loan->agreement_document);
+            return response()->download($filePath, $fileName);
 
         } catch (\Exception $e) {
             Log::error('Error downloading document: ' . $e->getMessage());
@@ -818,7 +818,7 @@ class LoanController extends Controller
 
             $loan->status = 'pending_chairman';
             $loan->treasurer_approved_by = $user->id;
-            $loan->treasurer_approved_at = now();
+            $loan->treasurer_approved_at = \Illuminate\Support\Carbon::now();
             $loan->treasurer_notes = $request->notes;
             $loan->save();
 
@@ -865,7 +865,7 @@ class LoanController extends Controller
 
             $loan->status = 'approved';
             $loan->chairman_approved_by = $user->id;
-            $loan->chairman_approved_at = now();
+            $loan->chairman_approved_at = \Illuminate\Support\Carbon::now();
             $loan->chairman_notes = $request->notes;
             $loan->save();
 
@@ -912,7 +912,7 @@ class LoanController extends Controller
 
             $loan->status = 'active';
             $loan->disbursed_by = $user->id;
-            $loan->disbursed_at = now();
+            $loan->disbursed_at = \Illuminate\Support\Carbon::now();
             $loan->disbursement_notes = $request->notes;
             $loan->save();
 

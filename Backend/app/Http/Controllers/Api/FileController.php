@@ -16,20 +16,13 @@ class FileController extends Controller
     {
         $user = Auth::user();
         $query = File::with('uploader');
-
-        // Filter berdasarkan role user
         $userRole = $user->role->name ?? $user->role ?? 'anggota';
         
         if ($userRole === 'anggota') {
-            // Anggota hanya bisa lihat public dan member
             $query->whereIn('access_level', ['public', 'member']);
         } elseif (!in_array($userRole, ['admin', 'ketua', 'bendahara', 'sekretaris', 'pengawas'])) {
-            // Role lain selain admin hanya public
             $query->where('access_level', 'public');
         }
-        // Admin & pengurus bisa lihat semua (tidak ada filter)
-
-        // Filter kategori (jika ada)
         if ($request->has('category') && $request->category) {
             $query->where('file_category', $request->category);
         }
@@ -45,7 +38,6 @@ class FileController extends Controller
 
     public function store(Request $request)
     {
-        // Cek role yang boleh upload
         $user = Auth::user();
         $userRole = $user->role->name ?? $user->role ?? 'anggota';
         
@@ -94,7 +86,7 @@ class FileController extends Controller
         $user = Auth::user();
         $userRole = $user->role->name ?? $user->role ?? 'anggota';
         
-        // Cek akses
+        // Checking access
         if ($userRole === 'anggota') {
             if (!in_array($file->access_level, ['public', 'member'])) {
                 return response()->json([
@@ -148,7 +140,7 @@ class FileController extends Controller
         $user = Auth::user();
         $userRole = $user->role->name ?? $user->role ?? 'anggota';
         
-        // Cek akses
+        // Checking access
         if ($userRole === 'anggota') {
             if (!in_array($file->access_level, ['public', 'member'])) {
                 return response()->json([

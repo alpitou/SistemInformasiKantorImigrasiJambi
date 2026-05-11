@@ -20,29 +20,29 @@ class SavingController extends Controller
 {
     private function getBalance($userId, $savingTypeId = null)
     {
-        $query = Saving::where('user_id', $userId);
-
-        $query->where(function($q) {
-            $q->where('verification_status', 'verified')
-              ->orWhere('transaction_type', 'withdrawal');
-        });
+        $query = Saving::where('user_id', $userId)
+            ->where(function ($q) {
+                $q->where('verification_status', 'verified')
+                    ->orWhere('transaction_type', 'withdrawal');
+            });
 
         if ($savingTypeId) {
             $query->where('saving_type_id', $savingTypeId);
         }
 
-        $savings = $query->get();
+        $balance = $query->select(
+            DB::raw("
+            COALESCE(SUM(
+                CASE
+                    WHEN transaction_type = 'deposit'
+                    THEN amount
+                    ELSE -amount
+                END
+            ),0) as total
+        ")
+        )->value('total');
 
-        $balance = 0;
-        foreach ($savings as $saving) {
-            if ($saving->transaction_type === 'deposit') {
-                $balance += $saving->amount;
-            } else {
-                $balance -= $saving->amount;
-            }
-        }
-
-        return max(0, $balance);
+        return max(0, (float) $balance);
     }
 
     private function getActivePayrollPeriod()
@@ -51,7 +51,7 @@ class SavingController extends Controller
         $day = (int) $today->format('d');
         $year = (int) $today->format('Y');
         $month = (int) $today->format('m');
-        
+
         if ($day >= 25) {
             $nextMonth = $month + 1;
             $nextYear = $year;
@@ -76,32 +76,31 @@ class SavingController extends Controller
         $lastInstallment = LoanInstallment::where('loan_id', $loanId)
             ->orderBy('installment_number', 'desc')
             ->first();
-        
+
         return $lastInstallment ? $lastInstallment->installment_number + 1 : 1;
     }
 
     // ==================== BASIC CRUD ====================
-    
+
     public function index(Request $request)
     {
         $user = $request->user();
-        
-        $query = Saving::with(['user', 'type', 'creator', 'verifier']);
-        
+
+        $query = Saving::with(['user', 'type', 'creator', 'verifier'])->get();
+
         if ($request->has('status') && $request->status === 'pending') {
             $query->where('verification_status', 'pending')
-                  ->where('transaction_type', 'deposit');
+                ->where('transaction_type', 'deposit');
         }
-        
+
         if (!in_array($user->role_id, [1, 3])) {
             $query->where('user_id', $user->id);
         }
-        
+
         $savings = $query->orderBy('transaction_date', 'desc')->get();
-        
+
         return response()->json([
             'success' => true,
-            'message' => 'Data transaksi simpanan berhasil diambil',
             'data' => $savings
         ]);
     }
@@ -110,7 +109,7 @@ class SavingController extends Controller
     {
         $user = $request->user();
         $saving = Saving::with(['user', 'type', 'creator', 'verifier'])->findOrFail($id);
-        
+
         if (!in_array($user->role_id, [1, 3]) && $saving->user_id != $user->id) {
             return response()->json([
                 'success' => false,
@@ -118,7 +117,7 @@ class SavingController extends Controller
                 'data' => null
             ], 403);
         }
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Data transaksi simpanan berhasil diambil',
@@ -129,7 +128,7 @@ class SavingController extends Controller
     public function getUserSavings($userId, Request $request)
     {
         $currentUser = $request->user();
-        
+
         if (!in_array($currentUser->role_id, [1, 3]) && $currentUser->id != $userId) {
             return response()->json([
                 'success' => false,
@@ -137,15 +136,14 @@ class SavingController extends Controller
                 'data' => null
             ], 403);
         }
-        
+
         $savings = Saving::with(['type', 'creator', 'verifier'])
             ->where('user_id', $userId)
             ->orderBy('transaction_date', 'desc')
             ->get();
-        
+
         return response()->json([
             'success' => true,
-            'message' => 'Data simpanan anggota berhasil diambil',
             'data' => $savings
         ]);
     }
@@ -161,10 +159,10 @@ class SavingController extends Controller
             'transaction_date' => 'required|date',
             'proof_image' => 'nullable|string'
         ]);
-        
+
         if ($request->transaction_type === 'withdrawal') {
             $balance = $this->getBalance($request->user_id, $request->saving_type_id);
-            
+
             if ($request->amount > $balance) {
                 return response()->json([
                     'success' => false,
@@ -173,19 +171,19 @@ class SavingController extends Controller
                 ], 400);
             }
         }
-        
+
         try {
             DB::beginTransaction();
-            
+
             $verificationStatus = 'verified';
             $savingType = SavingType::find($request->saving_type_id);
-            
+
             if ($request->transaction_type === 'deposit') {
                 if ($savingType && strtolower($savingType->name) === 'sukarela') {
                     $verificationStatus = 'pending';
                 }
             }
-            
+
             $saving = Saving::create([
                 'user_id' => $request->user_id,
                 'saving_type_id' => $request->saving_type_id,
@@ -197,26 +195,26 @@ class SavingController extends Controller
                 'proof_image' => $request->proof_image,
                 'verification_status' => $verificationStatus
             ]);
-            
+
             if ($verificationStatus === 'verified') {
                 $saving->update([
                     'verified_at' => now(),
                     'verified_by' => $request->user()->id
                 ]);
             }
-            
+
             DB::commit();
-            
-            $message = $request->transaction_type === 'deposit' 
+
+            $message = $request->transaction_type === 'deposit'
                 ? ($verificationStatus === 'pending' ? 'Setoran diajukan, menunggu verifikasi' : 'Setoran berhasil')
                 : 'Penarikan berhasil';
-            
+
             return response()->json([
                 'success' => true,
                 'message' => $message,
                 'data' => $saving->load(['user', 'type', 'creator'])
             ], 201);
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -255,7 +253,7 @@ class SavingController extends Controller
     public function verifyDeposit($id, Request $request)
     {
         $user = $request->user();
-        
+
         if (!in_array($user->role_id, [1, 3])) {
             return response()->json([
                 'success' => false,
@@ -263,9 +261,9 @@ class SavingController extends Controller
                 'data' => null
             ], 403);
         }
-        
+
         $saving = Saving::findOrFail($id);
-        
+
         if ($saving->transaction_type !== 'deposit') {
             return response()->json([
                 'success' => false,
@@ -273,7 +271,7 @@ class SavingController extends Controller
                 'data' => null
             ], 400);
         }
-        
+
         if ($saving->verification_status !== 'pending') {
             return response()->json([
                 'success' => false,
@@ -281,24 +279,24 @@ class SavingController extends Controller
                 'data' => null
             ], 400);
         }
-        
+
         try {
             DB::beginTransaction();
-            
+
             $saving->update([
                 'verification_status' => 'verified',
                 'verified_at' => now(),
                 'verified_by' => $user->id
             ]);
-            
+
             DB::commit();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Setoran berhasil diverifikasi',
                 'data' => $saving
             ]);
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -312,7 +310,7 @@ class SavingController extends Controller
     public function getSummary($userId, Request $request)
     {
         $currentUser = $request->user();
-        
+
         if (!in_array($currentUser->role_id, [1, 3]) && $currentUser->id != $userId) {
             return response()->json([
                 'success' => false,
@@ -320,19 +318,19 @@ class SavingController extends Controller
                 'data' => null
             ], 403);
         }
-        
+
         $savingTypes = SavingType::all();
         $summary = [];
         $total = 0;
-        
+
         foreach ($savingTypes as $type) {
             $balance = $this->getBalance($userId, $type->id);
             $summary[$type->name] = $balance;
             $total += $balance;
         }
-        
+
         $summary['total'] = $total;
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Ringkasan saldo berhasil diambil',
@@ -350,12 +348,12 @@ class SavingController extends Controller
     }
 
     // ==================== PAYROLL METHODS ====================
-    
+
     public function checkPayrollPeriod(Request $request)
     {
         $isActive = $this->isPayrollPeriodActive();
         $activePeriod = $this->getActivePayrollPeriod();
-        
+
         return response()->json([
             'success' => true,
             'message' => $isActive ? 'Periode payroll aktif' : 'Periode payroll tidak aktif',
@@ -367,12 +365,12 @@ class SavingController extends Controller
             ]
         ]);
     }
-    
+
     public function getMembersForPayroll(Request $request)
     {
         try {
             $members = User::where('role_id', 5)->where('status', 'active')->get();
-            
+
             if ($members->isEmpty()) {
                 return response()->json([
                     'success' => true,
@@ -380,19 +378,19 @@ class SavingController extends Controller
                     'data' => []
                 ]);
             }
-            
+
             $savingTypes = SavingType::whereIn('name', ['Pokok', 'Wajib'])->get();
             $activePeriod = $this->getActivePayrollPeriod();
             $selectedMonth = $request->query('month', now()->format('Y-m'));
             $selectedYear = substr($selectedMonth, 0, 4);
             $selectedMonthNum = substr($selectedMonth, 5, 2);
-            
+
             $result = [];
             foreach ($members as $member) {
                 $hasPaidPokok = false;
                 $pokokType = $savingTypes->firstWhere('name', 'Pokok');
                 $pokokAmount = $pokokType->default_amount ?? 50000;
-                
+
                 if ($pokokType) {
                     $principalSavings = Saving::where('user_id', $member->id)
                         ->where('saving_type_id', $pokokType->id)
@@ -401,11 +399,11 @@ class SavingController extends Controller
                         ->sum('amount');
                     $hasPaidPokok = $principalSavings >= $pokokAmount;
                 }
-                
+
                 $alreadyProcessed = false;
                 $wajibType = $savingTypes->firstWhere('name', 'Wajib');
                 $monthName = date('F Y', strtotime($selectedMonth . '-01'));
-                
+
                 if ($wajibType) {
                     $existingWajib = Saving::where('user_id', $member->id)
                         ->where('saving_type_id', $wajibType->id)
@@ -415,7 +413,7 @@ class SavingController extends Controller
                         ->exists();
                     $alreadyProcessed = $existingWajib;
                 }
-                
+
                 $memberData = [
                     'id' => $member->id,
                     'name' => $member->name,
@@ -431,26 +429,26 @@ class SavingController extends Controller
                     'loan_already_processed' => false,
                     'savings' => []
                 ];
-                
+
                 foreach ($savingTypes as $type) {
                     $defaultAmount = $type->default_amount ?? ($type->name === 'Pokok' ? 50000 : 100000);
                     $balance = $this->getBalance($member->id, $type->id);
-                    
+
                     if ($type->name === 'Pokok' && $hasPaidPokok) {
                         $defaultAmount = 0;
                     }
-                    
+
                     if ($type->name === 'Wajib' && $alreadyProcessed) {
                         $defaultAmount = 0;
                     }
-                    
+
                     $isProcessed = false;
                     if ($type->name === 'Wajib') {
                         $isProcessed = $alreadyProcessed;
                     } elseif ($type->name === 'Pokok') {
                         $isProcessed = $hasPaidPokok;
                     }
-                    
+
                     $memberData['savings'][] = [
                         'type_id' => $type->id,
                         'type_name' => $type->name,
@@ -459,32 +457,32 @@ class SavingController extends Controller
                         'is_processed' => $isProcessed
                     ];
                 }
-                
+
                 $activeLoan = Loan::where('user_id', $member->id)
                     ->where('status', 'active')
                     ->where('remaining_balance', '>', 0)
                     ->first();
-                
+
                 if ($activeLoan) {
                     $memberData['has_active_loan'] = true;
                     $memberData['loan_installment'] = (float) $activeLoan->monthly_installment;
                     $memberData['loan_remaining'] = (float) $activeLoan->remaining_balance;
-                    
+
                     $loanAlreadyProcessed = LoanInstallment::where('loan_id', $activeLoan->id)
                         ->where('payment_method', 'potong_gaji')
                         ->whereYear('payment_date', $selectedYear)
                         ->whereMonth('payment_date', $selectedMonthNum)
                         ->exists();
                     $memberData['loan_already_processed'] = $loanAlreadyProcessed;
-                    
+
                     if ($loanAlreadyProcessed) {
                         $memberData['loan_installment'] = 0;
                     }
                 }
-                
+
                 $result[] = $memberData;
             }
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Data anggota berhasil diambil',
@@ -495,7 +493,7 @@ class SavingController extends Controller
                     'info' => 'Payroll hanya dapat diproses pada tanggal 25 sampai 5 bulan berikutnya'
                 ]
             ]);
-            
+
         } catch (\Exception $e) {
             \Log::error('Payroll members error: ' . $e->getMessage());
             return response()->json([
@@ -510,23 +508,23 @@ class SavingController extends Controller
     {
         try {
             $history = [];
-            
+
             $savingHistory = Saving::with(['user', 'type', 'creator'])
                 ->where('description', 'like', 'Potongan payroll%')
                 ->orderBy('created_at', 'desc')
                 ->get();
-            
+
             foreach ($savingHistory as $item) {
                 $month = date('Y-m', strtotime($item->created_at));
                 $monthName = date('F Y', strtotime($item->created_at));
-                
+
                 if (!isset($history[$month])) {
                     $history[$month] = [
                         'name' => $monthName,
                         'items' => []
                     ];
                 }
-                
+
                 $history[$month]['items'][] = [
                     'id' => $item->id,
                     'type' => 'saving',
@@ -541,21 +539,21 @@ class SavingController extends Controller
                     'creator' => $item->creator ? $item->creator->name : null
                 ];
             }
-            
+
             krsort($history);
-            
+
             foreach ($history as $month => $data) {
-                usort($history[$month]['items'], function($a, $b) {
+                usort($history[$month]['items'], function ($a, $b) {
                     return strtotime($b['date']) - strtotime($a['date']);
                 });
             }
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Riwayat potongan payroll berhasil diambil',
                 'data' => $history
             ]);
-            
+
         } catch (\Exception $e) {
             \Log::error('Payroll history error: ' . $e->getMessage());
             return response()->json([
@@ -570,25 +568,25 @@ class SavingController extends Controller
     {
         try {
             $user = $request->user();
-            
+
             $request->validate([
                 'month' => 'required|string',
                 'deductions' => 'array',
                 'process_loan_installments' => 'boolean'
             ]);
-            
+
             $activePeriod = $this->getActivePayrollPeriod();
             $monthName = $activePeriod['name'];
             $processLoanInstallments = $request->process_loan_installments ?? true;
             $selectedMonth = $request->month;
             $selectedYear = substr($selectedMonth, 0, 4);
             $selectedMonthNum = substr($selectedMonth, 5, 2);
-            
+
             DB::beginTransaction();
             $processedCount = 0;
             $skippedCount = 0;
             $loanProcessedCount = 0;
-            
+
             if (!empty($request->deductions) && is_array($request->deductions)) {
                 foreach ($request->deductions as $deduction) {
                     $savingType = SavingType::find($deduction['saving_type_id']);
@@ -596,24 +594,24 @@ class SavingController extends Controller
                         $skippedCount++;
                         continue;
                     }
-                    
+
                     $existing = Saving::where('user_id', $deduction['user_id'])
                         ->where('saving_type_id', $deduction['saving_type_id'])
                         ->whereYear('created_at', $selectedYear)
                         ->whereMonth('created_at', $selectedMonthNum)
                         ->where('description', 'like', "%{$monthName}%")
                         ->first();
-                    
+
                     if ($existing) {
                         $skippedCount++;
                         continue;
                     }
-                    
+
                     if ($deduction['amount'] <= 0) {
                         $skippedCount++;
                         continue;
                     }
-                    
+
                     Saving::create([
                         'user_id' => $deduction['user_id'],
                         'saving_type_id' => $deduction['saving_type_id'],
@@ -629,31 +627,31 @@ class SavingController extends Controller
                     $processedCount++;
                 }
             }
-            
+
             if ($processLoanInstallments) {
                 $activeLoans = Loan::where('status', 'active')
                     ->where('remaining_balance', '>', 0)
                     ->get();
-                
+
                 foreach ($activeLoans as $activeLoan) {
                     $member = User::find($activeLoan->user_id);
                     if (!$member || $member->status !== 'active') {
                         continue;
                     }
-                    
+
                     $existingLoanPayment = LoanInstallment::where('loan_id', $activeLoan->id)
                         ->where('payment_method', 'potong_gaji')
                         ->whereYear('payment_date', $selectedYear)
                         ->whereMonth('payment_date', $selectedMonthNum)
                         ->first();
-                    
+
                     if ($existingLoanPayment) {
                         continue;
                     }
-                    
+
                     $installmentAmount = $activeLoan->monthly_installment;
                     $nextInstallmentNumber = $this->getNextInstallmentNumber($activeLoan->id);
-                    
+
                     LoanInstallment::create([
                         'loan_id' => $activeLoan->id,
                         'installment_number' => $nextInstallmentNumber,
@@ -663,9 +661,9 @@ class SavingController extends Controller
                         'received_by' => $user->id,
                         'notes' => "Pembayaran angsuran ke-{$nextInstallmentNumber} melalui payroll {$monthName}"
                     ]);
-                    
+
                     $newRemainingBalance = $activeLoan->remaining_balance - $installmentAmount;
-                    
+
                     if ($newRemainingBalance <= 0) {
                         $activeLoan->status = 'completed';
                         $activeLoan->remaining_balance = 0;
@@ -673,30 +671,32 @@ class SavingController extends Controller
                         $activeLoan->remaining_balance = $newRemainingBalance;
                     }
                     $activeLoan->save();
-                    
+
                     $loanProcessedCount++;
                 }
             }
-            
+
             DB::commit();
-            
+
             $message = "";
             if ($processedCount > 0) {
                 $message .= "{$processedCount} potongan simpanan berhasil diproses";
             }
             if ($loanProcessedCount > 0) {
-                if ($message) $message .= ", ";
+                if ($message)
+                    $message .= ", ";
                 $message .= "{$loanProcessedCount} angsuran pinjaman dipotong";
             }
             if ($skippedCount > 0) {
-                if ($message) $message .= ", ";
+                if ($message)
+                    $message .= ", ";
                 $message .= "{$skippedCount} dilewati";
             }
             if (empty($message)) {
                 $message = "Tidak ada data yang diproses";
             }
             $message .= " untuk periode {$monthName}";
-            
+
             return response()->json([
                 'success' => true,
                 'message' => $message,
@@ -707,7 +707,7 @@ class SavingController extends Controller
                     'period' => $activePeriod
                 ]
             ]);
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Payroll process error: ' . $e->getMessage());
@@ -724,17 +724,17 @@ class SavingController extends Controller
         try {
             $month = $request->query('month');
             $allTransactions = [];
-            
+
             $savingQuery = Saving::with(['user', 'type', 'creator'])
                 ->where('description', 'like', 'Potongan payroll%');
-            
+
             if ($month) {
                 $savingQuery->whereYear('created_at', substr($month, 0, 4))
-                            ->whereMonth('created_at', substr($month, 5, 2));
+                    ->whereMonth('created_at', substr($month, 5, 2));
             }
-            
+
             $savingHistory = $savingQuery->orderBy('created_at', 'desc')->get();
-            
+
             foreach ($savingHistory as $item) {
                 $allTransactions[] = [
                     'date' => $item->created_at,
@@ -747,24 +747,24 @@ class SavingController extends Controller
                     'creator' => $item->creator ? $item->creator->name : '-'
                 ];
             }
-            
-            usort($allTransactions, function($a, $b) {
+
+            usort($allTransactions, function ($a, $b) {
                 return strtotime($b['date']) - strtotime($a['date']);
             });
-            
+
             $filename = 'riwayat_potongan_payroll_' . date('Y-m-d') . '.csv';
             if ($month) {
                 $filename = 'riwayat_payroll_' . $month . '.csv';
             }
-            
+
             $handle = fopen('php://temp', 'w+');
             if ($handle === false) {
                 throw new \Exception('Cannot create temp file');
             }
-            
+
             fwrite($handle, "\xEF\xBB\xBF");
             fputcsv($handle, ['No', 'Tanggal', 'Jenis Transaksi', 'Nama Anggota', 'NIP/NIK', 'Unit', 'Jumlah (Rp)', 'Dibuat Oleh']);
-            
+
             $no = 1;
             foreach ($allTransactions as $item) {
                 fputcsv($handle, [
@@ -779,21 +779,21 @@ class SavingController extends Controller
                 ]);
                 $no++;
             }
-            
+
             rewind($handle);
             $csvContent = stream_get_contents($handle);
             fclose($handle);
-            
+
             if ($csvContent === false) {
                 throw new \Exception('Cannot read CSV content');
             }
-            
+
             return response($csvContent, 200)
                 ->header('Content-Type', 'text/csv; charset=UTF-8')
                 ->header('Content-Disposition', 'attachment; filename="' . $filename . '"')
                 ->header('Cache-Control', 'private, max-age=0, must-revalidate')
                 ->header('Pragma', 'public');
-            
+
         } catch (\Exception $e) {
             \Log::error('Export error: ' . $e->getMessage());
             return response()->json([
@@ -805,12 +805,12 @@ class SavingController extends Controller
     }
 
     // ==================== KANTIN INCOME METHODS ====================
-    
+
     public function getKantinIncomes(Request $request)
     {
         try {
             $month = $request->query('month');
-            
+
             if (!Schema::hasTable('kantin_incomes')) {
                 return response()->json([
                     'success' => true,
@@ -820,19 +820,19 @@ class SavingController extends Controller
                     'total_shu' => 0
                 ]);
             }
-            
+
             $query = KantinIncome::with('creator')
                 ->orderBy('income_date', 'desc');
-            
+
             if ($month) {
                 $query->whereYear('income_date', substr($month, 0, 4))
-                      ->whereMonth('income_date', substr($month, 5, 2));
+                    ->whereMonth('income_date', substr($month, 5, 2));
             }
-            
+
             $incomes = $query->get();
             $total = $incomes->sum('amount');
             $totalShu = $incomes->sum('shu_amount');
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Data pemasukan kantin berhasil diambil',
@@ -840,7 +840,7 @@ class SavingController extends Controller
                 'total' => $total,
                 'total_shu' => $totalShu
             ]);
-            
+
         } catch (\Exception $e) {
             \Log::error('Get Kantin Incomes error: ' . $e->getMessage());
             return response()->json([
@@ -852,7 +852,7 @@ class SavingController extends Controller
             ]);
         }
     }
-    
+
     public function storeKantinIncome(Request $request)
     {
         try {
@@ -864,10 +864,10 @@ class SavingController extends Controller
                 'payment_method' => 'required|in:cash,transfer',
                 'notes' => 'nullable|string'
             ]);
-            
+
             $percentage = $request->shu_share_percentage ?? 30;
             $shuAmount = ($request->amount * $percentage) / 100;
-            
+
             $income = KantinIncome::create([
                 'income_date' => $request->income_date,
                 'description' => $request->description,
@@ -878,13 +878,13 @@ class SavingController extends Controller
                 'created_by' => $request->user()->id,
                 'notes' => $request->notes
             ]);
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Pemasukan kantin berhasil ditambahkan',
                 'data' => $income->load('creator')
             ], 201);
-            
+
         } catch (\Exception $e) {
             \Log::error('Store Kantin Income error: ' . $e->getMessage());
             return response()->json([
@@ -894,12 +894,12 @@ class SavingController extends Controller
             ], 500);
         }
     }
-    
+
     public function updateKantinIncome($id, Request $request)
     {
         try {
             $income = KantinIncome::findOrFail($id);
-            
+
             $request->validate([
                 'income_date' => 'required|date',
                 'description' => 'required|string|max:255',
@@ -908,10 +908,10 @@ class SavingController extends Controller
                 'payment_method' => 'required|in:cash,transfer',
                 'notes' => 'nullable|string'
             ]);
-            
+
             $percentage = $request->shu_share_percentage ?? 30;
             $shuAmount = ($request->amount * $percentage) / 100;
-            
+
             $income->update([
                 'income_date' => $request->income_date,
                 'description' => $request->description,
@@ -921,13 +921,13 @@ class SavingController extends Controller
                 'payment_method' => $request->payment_method,
                 'notes' => $request->notes
             ]);
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Pemasukan kantin berhasil diupdate',
                 'data' => $income->load('creator')
             ]);
-            
+
         } catch (\Exception $e) {
             \Log::error('Update Kantin Income error: ' . $e->getMessage());
             return response()->json([
@@ -937,19 +937,19 @@ class SavingController extends Controller
             ], 500);
         }
     }
-    
+
     public function deleteKantinIncome($id, Request $request)
     {
         try {
             $income = KantinIncome::findOrFail($id);
             $income->delete();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Pemasukan kantin berhasil dihapus',
                 'data' => null
             ]);
-            
+
         } catch (\Exception $e) {
             \Log::error('Delete Kantin Income error: ' . $e->getMessage());
             return response()->json([
@@ -961,7 +961,7 @@ class SavingController extends Controller
     }
 
     // ==================== SHU METHODS ====================
-    
+
     public function calculateSHU(Request $request)
     {
         try {
@@ -989,7 +989,8 @@ class SavingController extends Controller
             $biayaOperasional = $totalBunga * 0.20;
             $totalSHU = ($totalBunga - $biayaOperasional) + $kantinShu;
 
-            if ($totalSHU < 0) $totalSHU = 0;
+            if ($totalSHU < 0)
+                $totalSHU = 0;
 
             $memberShareAmount = $totalSHU * 0.6;
             $reserveAmount = $totalSHU * 0.4;
@@ -1036,7 +1037,7 @@ class SavingController extends Controller
             ], 200);
         }
     }
-    
+
     public function processSHU(Request $request)
     {
         try {
@@ -1148,20 +1149,20 @@ class SavingController extends Controller
             ], 500);
         }
     }
-    
+
     public function getSHUHistory(Request $request)
     {
         try {
             $history = SHU::with('processor')
                 ->orderBy('year', 'desc')
                 ->get();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Riwayat SHU berhasil diambil',
                 'data' => $history
             ]);
-            
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -1216,7 +1217,8 @@ class SavingController extends Controller
             }
 
             $totalSHU = ($totalBunga - $biayaOperasional) + $kantinTotalShu;
-            if ($totalSHU < 0) $totalSHU = 0;
+            if ($totalSHU < 0)
+                $totalSHU = 0;
 
             return response()->json([
                 'success' => true,
@@ -1272,37 +1274,40 @@ class SavingController extends Controller
             $user = $request->user();
             $type = $request->query('type', 'all');
             $month = $request->query('month');
-            
+            $limit = $request->query('limit', 50);
+
             $transactions = [];
-    
-            // =============================================
+
             // 1. GET DATA FROM SAVINGS TABLE (Simpanan)
-            // =============================================
             $savingsQuery = Saving::with(['type', 'user'])
-                ->where('user_id', $user->id);
-            
+                ->where('user_id', $user->id)->limit($limit);
+
             if ($month && $month !== 'all') {
                 $year = substr($month, 0, 4);
                 $monthNum = substr($month, 5, 2);
                 $savingsQuery->whereYear('transaction_date', $year)
-                            ->whereMonth('transaction_date', $monthNum);
+                    ->whereMonth('transaction_date', $monthNum);
             }
-            
-            $savings = $savingsQuery->orderBy('transaction_date', 'desc')->get();
-            
+
+            $savings = $savingsQuery->orderBy('transaction_date', 'desc')->limit($limit)->get();
+
             foreach ($savings as $saving) {
                 $isWithdrawal = $saving->transaction_type === 'withdrawal';
                 $typeName = $saving->type ? $saving->type->name : 'Simpanan';
                 $isPayroll = ($typeName === 'Wajib' && strpos($saving->description ?? '', 'gaji') !== false);
-                
+
                 // Filter by type
                 if ($type !== 'all') {
-                    if ($type === 'withdrawal' && !$isWithdrawal) continue;
-                    if ($type === 'saving' && ($isPayroll || $isWithdrawal)) continue;
-                    if ($type === 'payroll' && !$isPayroll) continue;
-                    if ($type === 'loan_installment' || $type === 'loan') continue;
+                    if ($type === 'withdrawal' && !$isWithdrawal)
+                        continue;
+                    if ($type === 'saving' && ($isPayroll || $isWithdrawal))
+                        continue;
+                    if ($type === 'payroll' && !$isPayroll)
+                        continue;
+                    if ($type === 'loan_installment' || $type === 'loan')
+                        continue;
                 }
-                
+
                 $transactions[] = [
                     'id' => 'saving_' . $saving->id,
                     'original_id' => $saving->id,
@@ -1319,31 +1324,30 @@ class SavingController extends Controller
                     'verification_status' => $saving->verification_status
                 ];
             }
-            
-            // =============================================
+
             // 2. GET DATA FROM LOAN INSTALLMENTS TABLE (Angsuran Pinjaman)
-            // =============================================
             $installmentsQuery = LoanInstallment::with(['loan.user'])
-                ->whereHas('loan', function($q) use ($user) {
-                    $q->where('user_id', $user->id);
+                ->whereHas('loan', function ($q) use ($user, $limit) {
+                    $q->where('user_id', $user->id)->limit($limit);
                 });
-            
+
             if ($month && $month !== 'all') {
                 $year = substr($month, 0, 4);
                 $monthNum = substr($month, 5, 2);
                 $installmentsQuery->whereYear('payment_date', $year)
-                                 ->whereMonth('payment_date', $monthNum);
+                    ->whereMonth('payment_date', $monthNum);
             }
-            
+
             $installments = $installmentsQuery->orderBy('payment_date', 'desc')->get();
-            
+
             foreach ($installments as $installment) {
                 $amount = (float) $installment->amount_paid;
                 $paymentMethod = $installment->payment_method === 'potong_gaji' ? 'Potong Gaji' : ($installment->payment_method === 'transfer' ? 'Transfer' : 'Tunai');
-                
+
                 // Filter by type
-                if ($type !== 'all' && $type !== 'loan_installment') continue;
-                
+                if ($type !== 'all' && $type !== 'loan_installment')
+                    continue;
+
                 $transactions[] = [
                     'id' => 'installment_' . $installment->id,
                     'original_id' => $installment->id,
@@ -1362,48 +1366,47 @@ class SavingController extends Controller
                     'installment_number' => $installment->installment_number
                 ];
             }
-            
-            // =============================================
+
             // 3. GET DATA FROM LOANS TABLE (Pengajuan Pinjaman)
-            // =============================================
             $loansQuery = Loan::with(['user'])
-                ->where('user_id', $user->id);
-            
+                ->where('user_id', $user->id)->limit($limit);
+
             if ($month && $month !== 'all') {
                 $year = substr($month, 0, 4);
                 $monthNum = substr($month, 5, 2);
                 $loansQuery->whereYear('created_at', $year)
-                           ->whereMonth('created_at', $monthNum);
+                    ->whereMonth('created_at', $monthNum);
             }
-            
-            $loans = $loansQuery->orderBy('created_at', 'desc')->get();
-            
+
+            $loans = $loansQuery->orderBy('created_at', 'desc')->limit($limit)->get();
+
             foreach ($loans as $loan) {
                 // Filter by type
-                if ($type !== 'all' && $type !== 'loan') continue;
-                
+                if ($type !== 'all' && $type !== 'loan')
+                    continue;
+
                 $statusText = '';
                 $statusColor = '';
-                switch($loan->status) {
-                    case 'pending': 
-                        $statusText = 'Menunggu Verifikasi'; 
+                switch ($loan->status) {
+                    case 'pending':
+                        $statusText = 'Menunggu Verifikasi';
                         break;
-                    case 'approved': 
-                        $statusText = 'Disetujui'; 
+                    case 'approved':
+                        $statusText = 'Disetujui';
                         break;
-                    case 'active': 
-                        $statusText = 'Aktif'; 
+                    case 'active':
+                        $statusText = 'Aktif';
                         break;
-                    case 'rejected': 
-                        $statusText = 'Ditolak'; 
+                    case 'rejected':
+                        $statusText = 'Ditolak';
                         break;
-                    case 'completed': 
-                        $statusText = 'Lunas'; 
+                    case 'completed':
+                        $statusText = 'Lunas';
                         break;
-                    default: 
+                    default:
                         $statusText = $loan->status;
                 }
-                    
+
                 $transactions[] = [
                     'id' => 'loan_' . $loan->id,
                     'original_id' => $loan->id,
@@ -1420,12 +1423,12 @@ class SavingController extends Controller
                     'verification_status' => $loan->status === 'active' ? 'verified' : 'pending'
                 ];
             }
-                    
+
             // Sort by date (newest first)
-            usort($transactions, function($a, $b) {
+            usort($transactions, function ($a, $b) {
                 return strtotime($b['date']) - strtotime($a['date']);
             });
-                    
+
             return response()->json([
                 'success' => true,
                 'message' => 'Riwayat transaksi berhasil diambil',
@@ -1437,7 +1440,7 @@ class SavingController extends Controller
                     'total' => count($transactions)
                 ]
             ]);
-                    
+
         } catch (\Exception $e) {
             \Log::error('Transaction history error: ' . $e->getMessage());
             return response()->json([
@@ -1454,45 +1457,55 @@ class SavingController extends Controller
     {
         try {
             $user = $request->user();
-            $month = $request->get('month', date('Y-m'));
-            $type = $request->get('type', 'all');
-            
+            $month = $request->input('month', date('Y-m'));
+            $type = $request->input('type', 'all');
+            $limit = $request->query('limit', 50);
+
             // Get transactions data
-            $transactions = $this->getTransactionsData($user, $type, $month);
-            
+            $transactions = $this->getTransactionsData($user, $type, $month)->limit($limit);
+
             if (empty($transactions)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Tidak ada data transaksi untuk periode yang dipilih'
                 ], 404);
             }
-            
+
             // Generate filename
             $monthNames = [
-                '01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April',
-                '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
-                '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'
+                '01' => 'Januari',
+                '02' => 'Februari',
+                '03' => 'Maret',
+                '04' => 'April',
+                '05' => 'Mei',
+                '06' => 'Juni',
+                '07' => 'Juli',
+                '08' => 'Agustus',
+                '09' => 'September',
+                '10' => 'Oktober',
+                '11' => 'November',
+                '12' => 'Desember'
             ];
             $monthNum = date('m', strtotime($month . '-01'));
             $monthName = $monthNames[$monthNum] ?? $monthNum;
             $year = date('Y', strtotime($month . '-01'));
-            
+
             $fileName = "riwayat_transaksi_" . str_replace(' ', '_', $user->name) . "_" . $monthName . "_" . $year . ".xlsx";
-            
+
             // Export to Excel (create simple CSV if Excel not available)
             $handle = fopen('php://temp', 'w+');
             fwrite($handle, "\xEF\xBB\xBF");
-            
+
             // Headers
             fputcsv($handle, ['NO', 'TANGGAL', 'JENIS TRANSAKSI', 'KATEGORI', 'DESKRIPSI', 'JUMLAH (Rp)', 'STATUS']);
-            
+
             $no = 1;
             foreach ($transactions as $trx) {
                 $jumlah = $trx['amount'];
                 if (in_array($trx['type'], ['loan_installment', 'withdrawal'])) {
                     $jumlah = -$trx['amount'];
                 }
-                
+
                 fputcsv($handle, [
                     $no++,
                     date('d/m/Y', strtotime($trx['date'])),
@@ -1503,15 +1516,15 @@ class SavingController extends Controller
                     $trx['verification_status'] === 'verified' ? 'BERHASIL' : 'PENDING'
                 ]);
             }
-            
+
             rewind($handle);
             $csvContent = stream_get_contents($handle);
             fclose($handle);
-            
+
             return response($csvContent, 200)
                 ->header('Content-Type', 'text/csv; charset=UTF-8')
                 ->header('Content-Disposition', 'attachment; filename="' . str_replace('.xlsx', '.csv', $fileName) . '"');
-            
+
         } catch (\Exception $e) {
             \Log::error('Export error: ' . $e->getMessage());
             return response()->json([
@@ -1520,18 +1533,23 @@ class SavingController extends Controller
             ], 500);
         }
     }
-    
+
     private function getTransactionTypeName($type)
     {
-        switch($type) {
-            case 'saving': return 'SETORAN SUKARELA';
-            case 'withdrawal': return 'PENARIKAN SUKARELA';
-            case 'payroll': return 'POTONGAN PAYROLL';
-            case 'loan_installment': return 'ANGSURAN PINJAMAN';
-            default: return 'TRANSAKSI LAINNYA';
+        switch ($type) {
+            case 'saving':
+                return 'SETORAN SUKARELA';
+            case 'withdrawal':
+                return 'PENARIKAN SUKARELA';
+            case 'payroll':
+                return 'POTONGAN PAYROLL';
+            case 'loan_installment':
+                return 'ANGSURAN PINJAMAN';
+            default:
+                return 'TRANSAKSI LAINNYA';
         }
     }
-    
+
     private function getTransactionsData($user, $type, $month)
     {
         $transactions = [];
@@ -1539,27 +1557,30 @@ class SavingController extends Controller
         // Get savings data
         $savingsQuery = Saving::with(['type', 'user'])
             ->where('user_id', $user->id)
-            ->where(function($q) {
+            ->where(function ($q) {
                 $q->where('transaction_type', 'withdrawal')
-                  ->orWhere('verification_status', 'verified');
+                    ->orWhere('verification_status', 'verified');
             });
 
         if ($month) {
             $savingsQuery->whereYear('transaction_date', substr($month, 0, 4))
-                        ->whereMonth('transaction_date', substr($month, 5, 2));
+                ->whereMonth('transaction_date', substr($month, 5, 2));
         }
 
         $savings = $savingsQuery->get();
 
         foreach ($savings as $saving) {
-            $isPayroll = ($saving->type && $saving->type->name === 'Wajib' && 
-                         (strpos($saving->description ?? '', 'gaji') !== false || 
-                          strpos($saving->description ?? '', 'payroll') !== false));
+            $isPayroll = ($saving->type && $saving->type->name === 'Wajib' &&
+                (strpos($saving->description ?? '', 'gaji') !== false ||
+                    strpos($saving->description ?? '', 'payroll') !== false));
             $isWithdrawal = $saving->transaction_type === 'withdrawal';
 
-            if ($type === 'withdrawal' && !$isWithdrawal) continue;
-            if ($type === 'saving' && ($isPayroll || $isWithdrawal)) continue;
-            if ($type === 'payroll' && !$isPayroll) continue;
+            if ($type === 'withdrawal' && !$isWithdrawal)
+                continue;
+            if ($type === 'saving' && ($isPayroll || $isWithdrawal))
+                continue;
+            if ($type === 'payroll' && !$isPayroll)
+                continue;
 
             $transactions[] = [
                 'type' => $isWithdrawal ? 'withdrawal' : ($isPayroll ? 'payroll' : 'saving'),
@@ -1573,7 +1594,7 @@ class SavingController extends Controller
         }
 
         // Sort by date
-        usort($transactions, function($a, $b) {
+        usort($transactions, function ($a, $b) {
             return strtotime($b['date']) - strtotime($a['date']);
         });
 
@@ -1582,23 +1603,23 @@ class SavingController extends Controller
 
     // ==================== PAYROLL DEDUCTION METHODS ====================
 
-        /**
-         * Get members with their savings and loan data for payroll deduction
-         */
+    /**
+     * Get members with their savings and loan data for payroll deduction
+     */
     public function getPayrollMembers(Request $request)
     {
         try {
             $month = $request->query('month', now()->format('Y-m'));
             [$year, $monthNum] = explode('-', $month);
-                        
+
             // Get all active members (role_id = 5 = Anggota)
             $members = User::where('role_id', 5)
                 ->where('status', 'active')
                 ->get();
-                        
+
             // Get saving types
             $savingTypes = SavingType::all();
-                        
+
             // Get existing deductions for this month
             $existingDeductions = Saving::where('transaction_type', 'deposit')
                 ->whereYear('transaction_date', $year)
@@ -1606,54 +1627,54 @@ class SavingController extends Controller
                 ->where('description', 'like', '%Potongan Gaji%')
                 ->get()
                 ->groupBy('user_id');
-                        
+
             // Get existing loan installments for this month
             $existingLoanDeductions = LoanInstallment::where('payment_method', 'potong_gaji')
                 ->whereYear('payment_date', $year)
                 ->whereMonth('payment_date', $monthNum)
                 ->get()
                 ->groupBy('loan.user_id');
-                        
+
             $result = [];
-                        
+
             foreach ($members as $member) {
                 // Check if member already processed savings this month
                 $alreadyProcessed = $existingDeductions->has($member->id);
-                        
+
                 // Get member's savings data
                 $memberSavings = [];
                 foreach ($savingTypes as $type) {
                     $balance = $this->getBalance($member->id, $type->id);
-                        
+
                     // Check if this specific saving type already processed this month
                     $isProcessed = false;
                     if ($alreadyProcessed && $existingDeductions->has($member->id)) {
-                        $isProcessed = $existingDeductions[$member->id]->contains(function($s) use ($type) {
+                        $isProcessed = $existingDeductions[$member->id]->contains(function ($s) use ($type) {
                             return $s->saving_type_id == $type->id;
                         });
                     }
-                        
+
                     // Calculate default amount based on member status and saving type
                     $defaultAmount = $this->calculateDefaultAmount($member, $type);
                     $isApplicable = $defaultAmount > 0;
-                        
+
                     // For Pokok: only applicable if not fully paid
                     if ($type->name === 'Pokok') {
                         $pokokType = SavingType::where('name', 'Pokok')->first();
                         $pokokPaidAmount = $pokokType ? $this->getBalance($member->id, $pokokType->id) : 0;
                         $isApplicable = $pokokPaidAmount < ($type->default_amount ?? 100000);
                     }
-                        
+
                     // For Wajib: always applicable for active members
                     if ($type->name === 'Wajib') {
                         $isApplicable = true;
                     }
-                        
+
                     // For Sukarela: only applicable if member wants (default 0)
                     if ($type->name === 'Sukarela') {
                         $isApplicable = false; // Optional, not auto-deducted
                     }
-                        
+
                     $memberSavings[] = [
                         'type_id' => $type->id,
                         'type_name' => $type->name,
@@ -1664,18 +1685,18 @@ class SavingController extends Controller
                         'remaining_to_pay' => $type->name === 'Pokok' ? max(0, ($type->default_amount ?? 100000) - $balance) : 0
                     ];
                 }
-                        
+
                 // Check for active loan
                 $activeLoan = Loan::where('user_id', $member->id)
                     ->where('status', 'active')
                     ->where('remaining_balance', '>', 0)
                     ->first();
-                        
+
                 $hasActiveLoan = !is_null($activeLoan);
                 $loanInstallment = $hasActiveLoan ? $activeLoan->monthly_installment : 0;
                 $loanRemaining = $hasActiveLoan ? $activeLoan->remaining_balance : 0;
                 $loanAlreadyProcessed = $hasActiveLoan && $existingLoanDeductions->has($member->id);
-                        
+
                 $result[] = [
                     'id' => $member->id,
                     'name' => $member->name,
@@ -1691,13 +1712,13 @@ class SavingController extends Controller
                     'savings' => $memberSavings
                 ];
             }
-                        
+
             return response()->json([
                 'success' => true,
                 'message' => 'Data anggota berhasil diambil',
                 'data' => $result
             ]);
-                        
+
         } catch (\Exception $e) {
             \Log::error('Get payroll members error: ' . $e->getMessage());
             return response()->json([
@@ -1712,11 +1733,11 @@ class SavingController extends Controller
     {
         $typeName = $savingType->name;
         $defaultAmount = $savingType->default_amount ?? 0;
-                        
+
         // Get saving type configuration
         $pokokType = SavingType::where('name', 'Pokok')->first();
         $pokokRequired = $pokokType ? $pokokType->default_amount : 100000;
-                        
+
         switch ($typeName) {
             case 'Pokok':
                 $currentPokok = $pokokType ? $this->getBalance($member->id, $pokokType->id) : 0;
@@ -1747,9 +1768,9 @@ class SavingController extends Controller
             'Wajib' => 50000,
             'Sukarela' => 0
         ];
-                        
+
         $amount = $defaults[$savingType->name] ?? 0;
-                        
+
         // Old members (pokok sudah lunas) don't need to pay Pokok
         if ($savingType->name === 'Pokok') {
             $pokokBalance = $this->getBalance($member->id, $savingType->id);
@@ -1757,14 +1778,14 @@ class SavingController extends Controller
                 return 0; // Already paid
             }
         }
-                        
+
         return $amount;
     }
 
     /**
      * Process payroll deductions
-         */
-        /**
+     */
+    /**
      * Process payroll deductions
      */
     public function processPayroll(Request $request)
@@ -1778,9 +1799,9 @@ class SavingController extends Controller
                 'deductions.*.amount' => 'required|numeric|min:0',
                 'process_loan_installments' => 'boolean'
             ]);
-                
+
             $user = $request->user();
-                
+
             // Check permission - only treasurer or admin
             if (!in_array($user->role_id, [1, 3])) {
                 return response()->json([
@@ -1789,27 +1810,27 @@ class SavingController extends Controller
                     'data' => null
                 ], 403);
             }
-                
+
             DB::beginTransaction();
-                
+
             $month = $request->month;
             $transactionDate = $month . '-25';
             $processLoan = $request->process_loan_installments ?? true;
-                
+
             $processedSavings = 0;
             $processedLoans = 0;
             $totalAmount = 0;
             $errors = [];
-                
+
             // Get month name for description
             $monthName = date('F Y', strtotime($month . '-01'));
-                
+
             // Process savings deductions
             foreach ($request->deductions as $deduction) {
                 if ($deduction['amount'] <= 0) {
                     continue;
                 }
-                
+
                 // Check if already processed for this month
                 $exists = Saving::where('user_id', $deduction['user_id'])
                     ->where('saving_type_id', $deduction['saving_type_id'])
@@ -1817,10 +1838,10 @@ class SavingController extends Controller
                     ->whereMonth('transaction_date', substr($month, 5, 2))
                     ->where('description', 'like', '%Potongan Gaji%')
                     ->exists();
-                
+
                 if (!$exists) {
                     $savingType = SavingType::find($deduction['saving_type_id']);
-                    
+
                     Saving::create([
                         'user_id' => $deduction['user_id'],
                         'saving_type_id' => $deduction['saving_type_id'],
@@ -1837,24 +1858,24 @@ class SavingController extends Controller
                     $totalAmount += $deduction['amount'];
                 }
             }
-                
+
             // Process loan installments if enabled
             if ($processLoan) {
                 // Get members with active loans
                 $membersWithActiveLoan = User::where('role_id', 5)
                     ->where('status', 'active')
-                    ->whereHas('loans', function($q) {
+                    ->whereHas('loans', function ($q) {
                         $q->where('status', 'active')
-                          ->where('remaining_balance', '>', 0);
+                            ->where('remaining_balance', '>', 0);
                     })
                     ->get();
-                
+
                 foreach ($membersWithActiveLoan as $member) {
                     $activeLoan = Loan::where('user_id', $member->id)
                         ->where('status', 'active')
                         ->where('remaining_balance', '>', 0)
                         ->first();
-                    
+
                     if ($activeLoan) {
                         // Check if already processed this month
                         $exists = LoanInstallment::where('loan_id', $activeLoan->id)
@@ -1862,12 +1883,12 @@ class SavingController extends Controller
                             ->whereMonth('payment_date', substr($month, 5, 2))
                             ->where('payment_method', 'potong_gaji')
                             ->exists();
-                        
+
                         if (!$exists) {
                             $installmentAmount = $activeLoan->monthly_installment;
                             $installmentNumber = $this->getNextInstallmentNumber($activeLoan->id);
                             $newRemainingBalance = $activeLoan->remaining_balance - $installmentAmount;
-                            
+
                             // Create loan installment record
                             LoanInstallment::create([
                                 'loan_id' => $activeLoan->id,
@@ -1878,7 +1899,7 @@ class SavingController extends Controller
                                 'received_by' => $user->id,
                                 'notes' => "Potongan Gaji Bulan {$monthName}"
                             ]);
-                            
+
                             // Update loan balance
                             if ($newRemainingBalance <= 0) {
                                 $activeLoan->status = 'completed';
@@ -1887,23 +1908,23 @@ class SavingController extends Controller
                                 $activeLoan->remaining_balance = $newRemainingBalance;
                             }
                             $activeLoan->save();
-                            
+
                             $processedLoans++;
                             $totalAmount += $installmentAmount;
                         }
                     }
                 }
             }
-                
+
             DB::commit();
-                
+
             $message = "Berhasil memproses payroll untuk periode {$monthName}: ";
             $message .= "{$processedSavings} potongan simpanan";
             if ($processedLoans > 0) {
                 $message .= ", {$processedLoans} angsuran pinjaman";
             }
             $message .= ". Total: " . number_format($totalAmount, 0, ',', '.');
-                
+
             return response()->json([
                 'success' => true,
                 'message' => $message,
@@ -1915,7 +1936,7 @@ class SavingController extends Controller
                     'month_name' => $monthName
                 ]
             ]);
-                
+
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Process payroll error: ' . $e->getMessage());
@@ -1939,42 +1960,42 @@ class SavingController extends Controller
         try {
             $month = $request->query('month', date('Y-m'));
             [$year, $monthNum] = explode('-', $month);
-                        
+
             // Get members with their deduction amounts
             $members = User::where('role_id', 5)
                 ->where('status', 'active')
                 ->get();
-                        
+
             $pokokType = SavingType::where('name', 'Pokok')->first();
             $wajibType = SavingType::where('name', 'Wajib')->first();
-                        
+
             $deductions = [];
             $totalAll = 0;
-                        
+
             foreach ($members as $member) {
                 $pokokAmount = 0;
                 $wajibAmount = 0;
-                        
+
                 if ($pokokType) {
                     $pokokBalance = $this->getBalance($member->id, $pokokType->id);
                     if ($pokokBalance < 100000) {
                         $pokokAmount = 100000;
                     }
                 }
-                        
+
                 if ($wajibType) {
                     $wajibAmount = 50000;
                 }
-                        
+
                 // Check for active loan
                 $activeLoan = Loan::where('user_id', $member->id)
                     ->where('status', 'active')
                     ->first();
-                        
+
                 $loanAmount = $activeLoan ? $activeLoan->installment_amount : 0;
-                        
+
                 $total = $pokokAmount + $wajibAmount + $loanAmount;
-                        
+
                 if ($total > 0) {
                     $deductions[] = [
                         'name' => $member->name,
@@ -1989,7 +2010,7 @@ class SavingController extends Controller
                     $totalAll += $total;
                 }
             }
-                        
+
             // Generate CSV for bank format
             $csvRows = [];
             $csvRows[] = ['REKENINGKREDIT', 'NAMA REKENING', 'REMARKS', 'JUMLAH AMOUNT', 'JUMLAH CHARGE', 'JUMLAH RECORD', 'TANGGAL', 'CABANG', 'CORPORATE/CUSTOMER', 'CORPORATE CHARGE'];
@@ -2007,9 +2028,9 @@ class SavingController extends Controller
             ];
             $csvRows[] = [];
             $csvRows[] = ['REKENINGDEBET', 'NAMA REKENING', 'REMARKS', 'AMOUNT', 'CHARGE', '', '', '', '', ''];
-                        
+
             $transactionDate = str_replace('-', '', $month) . '25';
-                        
+
             foreach ($deductions as $item) {
                 $csvRows[] = [
                     '182032093029',
@@ -2024,24 +2045,24 @@ class SavingController extends Controller
                     ''
                 ];
             }
-                        
+
             $filename = "payroll_{$month}.csv";
-                        
+
             $handle = fopen('php://temp', 'w+');
             fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
-                        
+
             foreach ($csvRows as $row) {
                 fputcsv($handle, $row);
             }
-                        
+
             rewind($handle);
             $csvContent = stream_get_contents($handle);
             fclose($handle);
-                        
+
             return response($csvContent, 200)
                 ->header('Content-Type', 'text/csv; charset=UTF-8')
                 ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
-                        
+
         } catch (\Exception $e) {
             \Log::error('Export payroll error: ' . $e->getMessage());
             return response()->json([

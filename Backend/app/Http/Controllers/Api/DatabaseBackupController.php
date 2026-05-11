@@ -28,7 +28,7 @@ class DatabaseBackupController extends Controller
                 ], 403);
             }
 
-            $backupType = $request->get('type', 'full'); // full, sql, or structure
+            $backupType = $request->input('type', 'full'); // full, sql, or structure
             $timestamp = Carbon::now()->format('Y-m-d_H-i-s');
             $backupDir = storage_path('app/backups');
             

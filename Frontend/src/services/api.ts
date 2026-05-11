@@ -1,5 +1,6 @@
 // src/services/api.ts
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
 // Gunakan relative path (akan diproxy oleh Vite ke http://127.0.0.1:8000/api)
 const API_URL = '/api';
@@ -15,6 +16,29 @@ const api = axios.create({
   timeout: 30000,
   // Tidak perlu withCredentials karena pakai proxy
 });
+
+const apiClient = axios.create({
+    baseURL: import.meta.env.VITE_API_URL + '/api',
+});
+
+apiClient.interceptors.request.use((config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+apiClient.interceptors.response.use(
+    response => response,
+    error => {
+        if (error.response?.status === 401) {
+            // Panggil logout dari AuthContext tidak bisa langsung, pakai event
+            window.dispatchEvent(new Event('auth:logout'));
+        }
+        return Promise.reject(error);
+    }
+);
 
 // Request interceptor
 api.interceptors.request.use(
@@ -552,4 +576,4 @@ export const formatDate = (dateString: string, format: 'short' | 'long' | 'iso' 
 };
 
 // Default export tetap api untuk backward compatibility
-export default api;
+export default apiClient;

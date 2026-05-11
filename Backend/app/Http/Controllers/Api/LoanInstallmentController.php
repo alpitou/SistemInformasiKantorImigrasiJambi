@@ -87,7 +87,7 @@ class LoanInstallmentController extends Controller
             
             if ($loan->remaining_balance <= 0) {
                 $loan->status = 'completed';
-                $loan->remaining_balance = 0;
+                $loan->remaining_balance = 0.0;
             } elseif ($loan->status === 'approved') {
                 $loan->status = 'active';
             }

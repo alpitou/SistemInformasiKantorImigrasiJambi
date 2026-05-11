@@ -24,23 +24,53 @@ class MemberDashboardController extends Controller
             $userId = $user->id;
 
             // Get savings summary (Pokok, Wajib, Sukarela)
-            $savingTypes = SavingType::all();
-            $totalSavings = 0;
+            $savingBalances = Saving::select(
+                'saving_type_id',
+                DB::raw("
+        SUM(
+            CASE
+                WHEN transaction_type = 'deposit'
+                THEN amount
+                ELSE -amount
+            END
+        ) as balance
+    ")
+            )
+                ->with('type:id,name')
+                ->where('user_id', $userId)
+                ->where(function ($q) {
+                    $q->where('verification_status', 'verified')
+                        ->orWhere('transaction_type', 'withdrawal');
+                })
+                ->groupBy('saving_type_id')
+                ->get();
+
             $pokokBalance = 0;
             $wajibBalance = 0;
             $sukarelaBalance = 0;
 
-            foreach ($savingTypes as $type) {
-                $balance = $this->getSavingsBalance($userId, $type->id);
-                $totalSavings += $balance;
+            foreach ($savingBalances as $saving) {
 
-                if ($type->name === 'Pokok')
+                $typeName = $saving->type?->name;
+                $balance = (float) $saving->balance;
+
+                if ($typeName === 'Pokok') {
                     $pokokBalance = $balance;
-                if ($type->name === 'Wajib')
+                }
+
+                if ($typeName === 'Wajib') {
                     $wajibBalance = $balance;
-                if ($type->name === 'Sukarela')
+                }
+
+                if ($typeName === 'Sukarela') {
                     $sukarelaBalance = $balance;
+                }
             }
+
+            $totalSavings =
+                $pokokBalance +
+                $wajibBalance +
+                $sukarelaBalance;
 
             // Get active loan
             $activeLoan = Loan::where('user_id', $userId)
@@ -117,7 +147,7 @@ class MemberDashboardController extends Controller
         try {
             $user = $request->user();
             $userId = $user->id;
-            $limit = $request->get('limit', 5);
+            $limit = $request->input('limit', 5);
 
             $transactions = [];
 
