@@ -1,5 +1,4 @@
 <?php
-// app/Models/User.php
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -26,6 +25,9 @@ class User extends Authenticatable
         'join_date',
         'phone',
         'status',
+        'employment_type',      // Baru
+        'cooperative_position', // Baru
+        'gender',               // Baru
         'bank_name',
         'account_number',
         'account_name',
@@ -37,7 +39,7 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-     protected $appends = ['avatar'];
+    protected $appends = ['avatar'];
 
     protected $casts = [
         'email_verified_at' => 'datetime',
@@ -50,72 +52,33 @@ class User extends Authenticatable
         return $this->belongsTo(Role::class, 'role_id');
     }
 
-    // Relasi ke Loan (pinjaman yang diajukan user)
-    public function loans()
+    // Accessor untuk employment type label
+    public function getEmploymentTypeLabelAttribute()
     {
-        return $this->hasMany(Loan::class, 'user_id');
-    }
-
-    // Relasi ke Loan (pinjaman yang disetujui user)
-    public function approvedLoans()
-    {
-        return $this->hasMany(Loan::class, 'approved_by');
-    }
-
-    // Relasi ke LoanInstallment (pembayaran yang diterima user)
-    public function receivedInstallments()
-    {
-        return $this->hasMany(LoanInstallment::class, 'received_by');
-    }
-    public function hasRole($roleName)
-    {
-        return $this->role && $this->role->name === $roleName;
-    }
-   
-    public function hasAnyRole($roles)
-    {
-        return $this->role && in_array($this->role->name, (array) $roles);
-    }
-
-    // Cek apakah user adalah admin atau pengurus
-    public function isAdmin()
-    {
-        $adminRoles = ['admin', 'ketua', 'bendahara', 'sekretaris', 'pengawas'];
-        return in_array($this->role->name, $adminRoles);
-    }
-
-    // Cek apakah user adalah anggota biasa
-    public function isMember()
-    {
-        return $this->role && $this->role->name === 'anggota';
-    }
-
-    // Format nama role untuk tampilan
-    public function getRoleLabelAttribute()
-    {
-        $roleMap = [
-            'admin' => 'Admin',
-            'ketua' => 'Ketua',
-            'bendahara' => 'Bendahara',
-            'sekretaris' => 'Sekretaris',
-            'pengawas' => 'Pengawas',
-            'anggota' => 'Anggota'
+        $types = [
+            'pppk' => 'PPPK',
+            'outsourcing' => 'Outsourcing',
+            'other' => 'Lain-lain'
         ];
-        return $roleMap[$this->role->name] ?? $this->role->name;
+        return $types[$this->employment_type] ?? $this->employment_type;
     }
 
-    // Format status untuk tampilan
-    public function getStatusLabelAttribute()
+    // Accessor untuk gender label
+    public function getGenderLabelAttribute()
     {
-        return $this->status === 'active' ? 'Aktif' : 'Tidak Aktif';
+        $genders = [
+            'male' => 'Laki-laki',
+            'female' => 'Perempuan'
+        ];
+        return $genders[$this->gender] ?? '-';
     }
 
     // Accessor untuk avatar
     public function getAvatarAttribute()
     {
         if ($this->avatar_path && Storage::disk('public')->exists($this->avatar_path)) {
-        return asset('storage/' . $this->avatar_path);
-    }
+            return asset('storage/' . $this->avatar_path);
+        }
         return 'https://api.dicebear.com/7.x/avataaars/svg?seed=' . urlencode($this->name);
     }
 

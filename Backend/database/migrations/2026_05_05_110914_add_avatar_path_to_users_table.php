@@ -1,4 +1,5 @@
 <?php
+// database/migrations/2026_05_05_110914_add_avatar_path_to_users_table.php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -9,14 +10,19 @@ return new class extends Migration
     public function up()
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->string('avatar_path')->nullable()->after('email');
+            // Cek apakah kolom belum ada sebelum menambahkan
+            if (!Schema::hasColumn('users', 'avatar_path')) {
+                $table->string('avatar_path')->nullable()->after('email');
+            }
         });
     }
 
     public function down()
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('avatar_path');
+            if (Schema::hasColumn('users', 'avatar_path')) {
+                $table->dropColumn('avatar_path');
+            }
         });
     }
 };
