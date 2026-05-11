@@ -1,4 +1,5 @@
 <?php
+// database/seeders/SavingTypeSeeder.php
 
 namespace Database\Seeders;
 
@@ -18,7 +19,7 @@ class SavingTypeSeeder extends Seeder
         SavingType::truncate();
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-        // Insert saving types
+        // Insert saving types with descriptions
         $savingTypes = [
             [
                 'name' => 'Pokok',
@@ -42,6 +43,7 @@ class SavingTypeSeeder extends Seeder
 
         foreach ($savingTypes as $type) {
             SavingType::create($type);
+            $this->command->info('Saving type created: ' . $type['name']);
         }
 
         $this->command->info('Saving types seeded successfully!');

@@ -22,7 +22,11 @@ import {
   Wallet,
   HandCoins,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Briefcase,
+  UsersRound,
+  UserCircle2,
+  Banknote
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/utils';
@@ -36,6 +40,9 @@ interface Member {
   unit: string;
   phone: string | null;
   status: 'active' | 'inactive';
+  employment_type: 'pppk' | 'outsourcing' | 'other';
+  cooperative_position: string | null;
+  gender: 'male' | 'female' | null;
   role: {
     id: number;
     name: string;
@@ -49,7 +56,30 @@ const ROLES = [
   { id: 2, name: 'ketua', label: 'Ketua' },
   { id: 3, name: 'bendahara', label: 'Bendahara' },
   { id: 4, name: 'sekretaris', label: 'Sekretaris' },
-  { id: 5, name: 'anggota', label: 'Anggota' }
+  { id: 5, name: 'pengawas', label: 'Pengawas' },
+  { id: 6, name: 'anggota', label: 'Anggota' }
+];
+
+const EMPLOYMENT_TYPES = [
+  { value: 'pppk', label: 'PPPK' },
+  { value: 'outsourcing', label: 'Outsourcing' },
+  { value: 'other', label: 'Lain-lain' }
+];
+
+const COOPERATIVE_POSITIONS = [
+  'Ketua Koperasi',
+  'Wakil Ketua Koperasi',
+  'Sekretaris Koperasi',
+  'Bendahara Koperasi',
+  'Pengawas Koperasi',
+  'Pengurus',
+  'Anggota Biasa',
+  '-'
+];
+
+const GENDERS = [
+  { value: 'male', label: 'Laki-laki' },
+  { value: 'female', label: 'Perempuan' }
 ];
 
 const MemberManagement: React.FC = () => {
@@ -79,9 +109,12 @@ const MemberManagement: React.FC = () => {
     nik: '',
     unit: '',
     phone: '',
-    role_id: 5,
+    role_id: 6,
     join_date: new Date().toISOString().split('T')[0],
-    status: 'active' as 'active' | 'inactive'
+    status: 'active' as 'active' | 'inactive',
+    employment_type: 'other' as 'pppk' | 'outsourcing' | 'other',
+    cooperative_position: '',
+    gender: '' as 'male' | 'female' | ''
   });
 
   const formatDate = (date: string) => {
@@ -98,6 +131,7 @@ const MemberManagement: React.FC = () => {
       'ketua': 'Ketua',
       'bendahara': 'Bendahara',
       'sekretaris': 'Sekretaris',
+      'pengawas': 'Pengawas',
       'anggota': 'Anggota'
     };
     return roleMap[roleName] || roleName;
@@ -109,9 +143,24 @@ const MemberManagement: React.FC = () => {
       'ketua': 'bg-red-100 text-red-700',
       'bendahara': 'bg-emerald-100 text-emerald-700',
       'sekretaris': 'bg-blue-100 text-blue-700',
+      'pengawas': 'bg-amber-100 text-amber-700',
       'anggota': 'bg-gray-100 text-gray-700'
     };
     return colorMap[roleName] || 'bg-gray-100 text-gray-700';
+  };
+
+  const getEmploymentTypeLabel = (type: string) => {
+    const types: Record<string, string> = {
+      'pppk': 'PPPK',
+      'outsourcing': 'Outsourcing',
+      'other': 'Lain-lain'
+    };
+    return types[type] || type;
+  };
+
+  const getGenderLabel = (gender: string | null) => {
+    if (!gender) return '-';
+    return gender === 'male' ? 'Laki-laki' : 'Perempuan';
   };
 
   useEffect(() => {
@@ -160,7 +209,10 @@ const MemberManagement: React.FC = () => {
       phone: member.phone || '',
       role_id: member.role.id,
       join_date: formattedDate,
-      status: member.status
+      status: member.status,
+      employment_type: member.employment_type || 'other',
+      cooperative_position: member.cooperative_position || '',
+      gender: member.gender || ''
     });
     setIdType(member.nip ? 'NIP' : 'NIK');
     setShowAddModal(true);
@@ -194,44 +246,45 @@ const MemberManagement: React.FC = () => {
       return;
     }
 
+    if (!formData.gender) {
+      setFormError('Jenis kelamin wajib dipilih');
+      return;
+    }
+
     setSaving(true);
     try {
       let submitData: any = {};
 
       if (editingMember) {
-        // UPDATE - kirim SEMUA field termasuk email (email yang sudah ada)
         submitData = {
           name: formData.name,
-          email: editingMember.email, // Gunakan email LAMA dari database
+          email: editingMember.email,
           unit: formData.unit,
           phone: formData.phone || null,
           role_id: formData.role_id,
           join_date: formData.join_date,
-          status: formData.status
+          status: formData.status,
+          employment_type: formData.employment_type,
+          cooperative_position: formData.cooperative_position || null,
+          gender: formData.gender
         };
 
-        // Kirim NIP jika ada
         if (formData.nip && formData.nip.trim() !== '') {
           submitData.nip = formData.nip;
         } else {
           submitData.nip = null;
         }
 
-        // Kirim NIK jika ada
         if (formData.nik && formData.nik.trim() !== '') {
           submitData.nik = formData.nik;
         } else {
           submitData.nik = null;
         }
 
-        // Kirim password jika diisi
         if (formData.password) {
           submitData.password = formData.password;
         }
-
-        console.log('Update data (using existing email):', submitData);
       } else {
-        // CREATE - kirim semua data
         submitData = {
           name: formData.name,
           email: formData.email,
@@ -240,6 +293,9 @@ const MemberManagement: React.FC = () => {
           role_id: formData.role_id,
           join_date: formData.join_date,
           status: formData.status,
+          employment_type: formData.employment_type,
+          cooperative_position: formData.cooperative_position || null,
+          gender: formData.gender,
           password: formData.password,
           password_confirmation: formData.password_confirmation
         };
@@ -306,9 +362,12 @@ const MemberManagement: React.FC = () => {
       nik: '',
       unit: '',
       phone: '',
-      role_id: 5,
+      role_id: 6,
       join_date: new Date().toISOString().split('T')[0],
-      status: 'active'
+      status: 'active',
+      employment_type: 'other',
+      cooperative_position: '',
+      gender: ''
     });
     setIdType('NIP');
     setFormError('');
@@ -377,6 +436,18 @@ const MemberManagement: React.FC = () => {
                     <span className="text-sm font-medium text-gray-900 dark:text-white">{selectedMember.phone || '-'}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-gray-100 dark:border-neutral-700">
+                    <span className="text-sm text-gray-500">Jenis Kelamin</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{getGenderLabel(selectedMember.gender)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-gray-100 dark:border-neutral-700">
+                    <span className="text-sm text-gray-500">Status Kepegawaian</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{getEmploymentTypeLabel(selectedMember.employment_type)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-gray-100 dark:border-neutral-700">
+                    <span className="text-sm text-gray-500">Jabatan di Koperasi</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{selectedMember.cooperative_position || '-'}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-gray-100 dark:border-neutral-700">
                     <span className="text-sm text-gray-500">Role</span>
                     <span className="text-sm font-medium capitalize">{getRoleLabel(selectedMember.role.name)}</span>
                   </div>
@@ -416,7 +487,7 @@ const MemberManagement: React.FC = () => {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-2xl bg-white dark:bg-neutral-800 rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+              className="relative w-full max-w-3xl bg-white dark:bg-neutral-800 rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
               <div className="p-6 border-b border-gray-100 dark:border-neutral-700 flex items-center justify-between bg-imigrasi-primary text-white sticky top-0">
                 <h3 className="font-bold text-xl">{editingMember ? 'Edit Data Anggota' : 'Tambah Anggota Baru'}</h3>
@@ -436,6 +507,7 @@ const MemberManagement: React.FC = () => {
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Nama Lengkap */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nama Lengkap *</label>
                     <input 
@@ -446,6 +518,8 @@ const MemberManagement: React.FC = () => {
                       className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" 
                     />
                   </div>
+
+                  {/* Email */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Email *</label>
                     <input 
@@ -456,6 +530,8 @@ const MemberManagement: React.FC = () => {
                       className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" 
                     />
                   </div>
+
+                  {/* Password */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">
                       Password {!editingMember && '*'}
@@ -468,6 +544,8 @@ const MemberManagement: React.FC = () => {
                       className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" 
                     />
                   </div>
+
+                  {/* Konfirmasi Password */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">
                       Konfirmasi Password {!editingMember && '*'}
@@ -480,6 +558,8 @@ const MemberManagement: React.FC = () => {
                       className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" 
                     />
                   </div>
+
+                  {/* NIP/NIK */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between ml-1">
                       <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
@@ -526,6 +606,43 @@ const MemberManagement: React.FC = () => {
                       className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" 
                     />
                   </div>
+
+                  {/* Jenis Kelamin */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Jenis Kelamin *</label>
+                    <div className="flex gap-4">
+                      {GENDERS.map((gender) => (
+                        <label key={gender.value} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            value={gender.value}
+                            checked={formData.gender === gender.value}
+                            onChange={(e) => setFormData({...formData, gender: e.target.value as 'male' | 'female'})}
+                            className="w-4 h-4 text-imigrasi-primary"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{gender.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Status Kepegawaian */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Status Kepegawaian *</label>
+                    <select 
+                      value={formData.employment_type}
+                      onChange={(e) => setFormData({...formData, employment_type: e.target.value as 'pppk' | 'outsourcing' | 'other'})}
+                      className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
+                    >
+                      {EMPLOYMENT_TYPES.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Seksi/Bagian */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Seksi / Bagian *</label>
                     <select 
@@ -541,6 +658,8 @@ const MemberManagement: React.FC = () => {
                       <option value="Sekretariat">Sekretariat</option>
                     </select>
                   </div>
+
+                  {/* Nomor Telepon */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nomor Telepon</label>
                     <input 
@@ -551,6 +670,8 @@ const MemberManagement: React.FC = () => {
                       className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" 
                     />
                   </div>
+
+                  {/* Role */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Role *</label>
                     <select 
@@ -565,6 +686,24 @@ const MemberManagement: React.FC = () => {
                       ))}
                     </select>
                   </div>
+
+                  {/* Jabatan di Koperasi */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Jabatan di Koperasi</label>
+                    <select 
+                      value={formData.cooperative_position}
+                      onChange={(e) => setFormData({...formData, cooperative_position: e.target.value})}
+                      className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white"
+                    >
+                      {COOPERATIVE_POSITIONS.map((position) => (
+                        <option key={position} value={position === '-' ? '' : position}>
+                          {position === '-' ? 'Tidak Ada' : position}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Tanggal Bergabung */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Tanggal Bergabung *</label>
                     <input 
@@ -574,6 +713,8 @@ const MemberManagement: React.FC = () => {
                       className="w-full p-4 bg-gray-50 dark:bg-neutral-700 border-2 border-transparent focus:border-imigrasi-accent rounded-2xl outline-none transition-all dark:text-white" 
                     />
                   </div>
+
+                  {/* Status */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Status</label>
                     <select 
@@ -654,16 +795,18 @@ const MemberManagement: React.FC = () => {
               <tr className="bg-gray-50 dark:bg-neutral-800/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
                 <th className="px-6 py-4 font-bold">Anggota</th>
                 <th className="px-6 py-4 font-bold">NIP/NIK</th>
+                <th className="px-6 py-4 font-bold">Jenis Kelamin</th>
+                <th className="px-6 py-4 font-bold">Status Kepegawaian</th>
                 <th className="px-6 py-4 font-bold">Unit Kerja</th>
                 <th className="px-6 py-4 font-bold">Role</th>
                 <th className="px-6 py-4 font-bold">Status</th>
                 <th className="px-6 py-4 font-bold text-right">Aksi</th>
-              </tr>
+               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={8} className="px-6 py-12 text-center">
                     <div className="flex justify-center">
                       <div className="w-8 h-8 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
                     </div>
@@ -671,7 +814,7 @@ const MemberManagement: React.FC = () => {
                  </tr>
               ) : filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                     Tidak ada data anggota
                    </td>
                  </tr>
@@ -690,23 +833,31 @@ const MemberManagement: React.FC = () => {
                           <p className="text-[10px] text-gray-500">{member.email}</p>
                         </div>
                       </div>
-                    </td>
+                     </td>
                     <td className="px-6 py-4 text-sm font-mono text-gray-600 dark:text-gray-300">
                       {member.nip || member.nik || '-'}
-                    </td>
+                     </td>
+                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                      {getGenderLabel(member.gender)}
+                     </td>
+                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                      <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
+                        {getEmploymentTypeLabel(member.employment_type)}
+                      </span>
+                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{member.unit}</td>
                     <td className="px-6 py-4">
                       <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider", getRoleColor(member.role.name))}>
                         {getRoleLabel(member.role.name)}
                       </span>
-                    </td>
+                     </td>
                     <td className="px-6 py-4">
                       <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
                         member.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                       )}>
                         {member.status === 'active' ? 'Aktif' : 'Tidak Aktif'}
                       </span>
-                    </td>
+                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button 
@@ -731,12 +882,12 @@ const MemberManagement: React.FC = () => {
                           <Trash2 size={18} />
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                     </td>
+                   </tr>
                 ))
               )}
             </tbody>
-          </table>
+           </table>
         </div>
         
         {!loading && pagination.last_page > 1 && (
@@ -767,7 +918,7 @@ const MemberManagement: React.FC = () => {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="glass-card p-6 rounded-3xl flex items-center gap-4">
           <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl">
             <Users size={24} />
@@ -797,6 +948,17 @@ const MemberManagement: React.FC = () => {
               {members.filter(m => m.role.name !== 'anggota').length}
             </h4>
             <p className="text-xs text-gray-500">Pengurus Koperasi</p>
+          </div>
+        </div>
+        <div className="glass-card p-6 rounded-3xl flex items-center gap-4">
+          <div className="p-3 bg-purple-100 text-purple-600 rounded-2xl">
+            <UsersRound size={24} />
+          </div>
+          <div>
+            <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {members.filter(m => m.employment_type === 'pppk').length}
+            </h4>
+            <p className="text-xs text-gray-500">PPPK</p>
           </div>
         </div>
       </div>

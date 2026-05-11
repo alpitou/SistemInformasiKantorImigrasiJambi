@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/Api/UserController.php
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -45,6 +44,9 @@ class UserController extends Controller
                 'role_id' => 'required|exists:roles,id',
                 'join_date' => 'required|date',
                 'status' => 'required|in:active,inactive',
+                'employment_type' => 'required|in:pppk,outsourcing,other',
+                'cooperative_position' => 'nullable|string',
+                'gender' => 'required|in:male,female',
                 'bank_name' => 'nullable|string',
                 'account_number' => 'nullable|string',
                 'account_name' => 'nullable|string'
@@ -69,6 +71,9 @@ class UserController extends Controller
                 'role_id' => $validated['role_id'],
                 'join_date' => $validated['join_date'],
                 'status' => $validated['status'],
+                'employment_type' => $validated['employment_type'],
+                'cooperative_position' => $validated['cooperative_position'] ?? null,
+                'gender' => $validated['gender'],
                 'bank_name' => $validated['bank_name'] ?? null,
                 'account_number' => $validated['account_number'] ?? null,
                 'account_name' => $validated['account_name'] ?? null
@@ -132,6 +137,9 @@ class UserController extends Controller
                 'status' => 'required|in:active,inactive',
                 'nip' => 'nullable|string',
                 'nik' => 'nullable|string',
+                'employment_type' => 'required|in:pppk,outsourcing,other',
+                'cooperative_position' => 'nullable|string',
+                'gender' => 'required|in:male,female',
                 'bank_name' => 'nullable|string',
                 'account_number' => 'nullable|string',
                 'account_name' => 'nullable|string'
@@ -191,6 +199,9 @@ class UserController extends Controller
             $user->role_id = $validated['role_id'];
             $user->join_date = $validated['join_date'];
             $user->status = $validated['status'];
+            $user->employment_type = $validated['employment_type'];
+            $user->cooperative_position = $validated['cooperative_position'] ?? null;
+            $user->gender = $validated['gender'];
             $user->bank_name = $validated['bank_name'] ?? null;
             $user->account_number = $validated['account_number'] ?? null;
             $user->account_name = $validated['account_name'] ?? null;
@@ -261,9 +272,6 @@ class UserController extends Controller
         }
     }
 
-    /**
-     * Update profile for current authenticated user
-     */
     public function updateProfile(Request $request)
     {
         try {
@@ -280,6 +288,9 @@ class UserController extends Controller
                 'name' => 'required|string|max:255',
                 'phone' => 'nullable|string|max:20',
                 'unit' => 'nullable|string|max:255',
+                'employment_type' => 'nullable|in:pppk,outsourcing,other',
+                'cooperative_position' => 'nullable|string',
+                'gender' => 'nullable|in:male,female',
                 'bank_name' => 'nullable|string|max:100',
                 'account_number' => 'nullable|string|max:50',
                 'account_name' => 'nullable|string|max:255'
@@ -305,6 +316,15 @@ class UserController extends Controller
             if (array_key_exists('unit', $validated)) {
                 $user->unit = $validated['unit'];
             }
+            if (array_key_exists('employment_type', $validated)) {
+                $user->employment_type = $validated['employment_type'];
+            }
+            if (array_key_exists('cooperative_position', $validated)) {
+                $user->cooperative_position = $validated['cooperative_position'];
+            }
+            if (array_key_exists('gender', $validated)) {
+                $user->gender = $validated['gender'];
+            }
             if (array_key_exists('bank_name', $validated)) {
                 $user->bank_name = $validated['bank_name'];
             }
@@ -317,7 +337,6 @@ class UserController extends Controller
 
             $user->save();
 
-            // Refresh user with role relation
             $user->load('role');
 
             return response()->json([
@@ -344,7 +363,6 @@ class UserController extends Controller
             $user = $request->user();
             $file = $request->file('avatar');
 
-            // Hapus avatar lama jika ada
             if ($user->avatar_path && Storage::disk('public')->exists($user->avatar_path)) {
                 Storage::disk('public')->delete($user->avatar_path);
             }
@@ -378,9 +396,6 @@ class UserController extends Controller
         }
     }
 
-    /**
-     * Change password for current authenticated user
-     */
     public function changePassword(Request $request)
     {
         try {
@@ -407,7 +422,6 @@ class UserController extends Controller
                 ], 422);
             }
 
-            // Check current password
             if (!Hash::check($request->current_password, $user->password)) {
                 return response()->json([
                     'success' => false,
@@ -415,7 +429,6 @@ class UserController extends Controller
                 ], 422);
             }
 
-            // Update password
             $user->password = Hash::make($request->new_password);
             $user->save();
 

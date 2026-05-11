@@ -1,9 +1,7 @@
 <?php
-// app/Http/Requests/User/CreateUserRequest.php
 namespace App\Http\Requests\User;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class CreateUserRequest extends FormRequest
 {
@@ -24,7 +22,13 @@ class CreateUserRequest extends FormRequest
             'phone' => 'nullable|string',
             'role_id' => 'required|exists:roles,id',
             'join_date' => 'required|date',
-            'status' => 'required|in:active,inactive'
+            'status' => 'required|in:active,inactive',
+            'employment_type' => 'required|in:pppk,outsourcing,other',
+            'cooperative_position' => 'nullable|string',
+            'gender' => 'required|in:male,female',
+            'bank_name' => 'nullable|string',
+            'account_number' => 'nullable|string',
+            'account_name' => 'nullable|string'
         ];
     }
 
@@ -40,6 +44,8 @@ class CreateUserRequest extends FormRequest
             'role_id.exists' => 'Role tidak valid',
             'unit.required' => 'Unit kerja wajib diisi',
             'join_date.required' => 'Tanggal bergabung wajib diisi',
+            'employment_type.required' => 'Status kepegawaian wajib dipilih',
+            'gender.required' => 'Jenis kelamin wajib dipilih'
         ];
     }
 }
