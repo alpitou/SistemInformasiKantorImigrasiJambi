@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import logo from "../../assets/images/logo.png";
 
 const Layout: React.FC = () => {
   const { user, logout, isDarkMode, toggleDarkMode } = useAuth();
@@ -274,12 +275,16 @@ const Layout: React.FC = () => {
                 exit={{ opacity: 0, x: -20 }}
                 className="flex items-center gap-2 whitespace-nowrap"
               >
-                <div className="w-8 h-8 bg-imigrasi-accent rounded-lg flex items-center justify-center font-bold text-imigrasi-primary shadow-lg text-sm">
-                  SIM
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center">
+                  <img
+                    src={logo}
+                    alt="Logo Koperasi Kantor Imigrasi Jambi"
+                    className="w-auto h-16 object-contain mx-auto"
+                  />
                 </div>
                 <div className={cn(isDarkMode ? "text-white" : "text-white")}>
-                  <h1 className="font-bold text-base leading-tight">SIMKOP-IM</h1>
-                  <p className="text-[9px] text-imigrasi-accent uppercase tracking-widest font-semibold">Kanim Jambi</p>
+                  <h1 className="font-bold text-base leading-tight">KOPERASI-KONSUMEN</h1>
+                  <p className="text-[12px] text-imigrasi-accent uppercase tracking-widest font-semibold">Kanim Jambi</p>
                 </div>
               </motion.div>
             )}
@@ -331,9 +336,11 @@ const Layout: React.FC = () => {
 
               {isSidebarOpen && (
                 <div className="mt-6 pt-4 border-t border-white/10">
-                  <div className="text-[9px] text-white/40 text-center">
-                    <p>© {new Date().getFullYear()} SIMKOP-IM</p>
-                    <p className="mt-1">Koperasi Kanim Jambi</p>
+                  <div className="text-[10px] text-white/40 text-center">
+                    <p>© {new Date().getFullYear()} KOPERASI KONSUMEN</p>
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-bold mt-1">
+                      Muhammad Alfito Priananda  Solihin
+                    </p>
                   </div>
                 </div>
               )}
