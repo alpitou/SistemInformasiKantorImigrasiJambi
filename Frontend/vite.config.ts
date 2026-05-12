@@ -23,7 +23,7 @@ export default defineConfig(({mode}) => {
       // Tambahkan proxy untuk bypass CORS
       proxy: {
         '/api': {
-          target: 'http://127.0.0.1:8000',
+          target: 'http://192.168.11.22:8000',
           changeOrigin: true,
           secure: false,
         },

@@ -54,6 +54,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/loans/{id}/reject', [LoanController::class, 'reject']);
     });
 
+    Route::get('/loan-settings', function () {
+        return response()->json(['success' => true, 'data' => []]);
+    })->middleware('auth:sanctum');
+
     // FILES ROUTES
     Route::get('/files', [FileController::class, 'index']);
     Route::get('/files/{file}', [FileController::class, 'show']);

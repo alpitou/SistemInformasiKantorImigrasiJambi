@@ -80,13 +80,11 @@ class SavingController extends Controller
         return $lastInstallment ? $lastInstallment->installment_number + 1 : 1;
     }
 
-    // ==================== BASIC CRUD ====================
-
     public function index(Request $request)
     {
         $user = $request->user();
 
-        $query = Saving::with(['user', 'type', 'creator', 'verifier'])->get();
+        $query = Saving::with(['user', 'type', 'creator', 'verifier']);
 
         if ($request->has('status') && $request->status === 'pending') {
             $query->where('verification_status', 'pending')
@@ -139,8 +137,7 @@ class SavingController extends Controller
 
         $savings = Saving::with(['type', 'creator', 'verifier'])
             ->where('user_id', $userId)
-            ->orderBy('transaction_date', 'desc')
-            ->get();
+            ->orderBy('transaction_date', 'desc');
 
         return response()->json([
             'success' => true,

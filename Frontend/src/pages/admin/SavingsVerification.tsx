@@ -119,7 +119,7 @@ const SavingsVerification: React.FC = () => {
   const fetchPendingSavings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get('/savings');
+      const response = await axiosInstance.get('/api/savings');
       if (response.data && response.data.data) {
         const pending = response.data.data.filter(
           (saving: any) => saving.transaction_type === 'deposit' && saving.verification_status === 'pending'
@@ -147,7 +147,7 @@ const SavingsVerification: React.FC = () => {
 
   const fetchVerifiedHistory = useCallback(async () => {
     try {
-      const response = await axiosInstance.get('/savings');
+      const response = await axiosInstance.get('/api/savings');
       if (response.data && response.data.data) {
         const verified = response.data.data.filter(
           (saving: any) =>
@@ -208,7 +208,7 @@ const SavingsVerification: React.FC = () => {
   const handleVerify = async (id: number) => {
     setVerifyingId(id);
     try {
-      const response = await axiosInstance.put(`/savings/${id}/verify`);
+      const response = await axiosInstance.put(`/api/savings/${id}/verify`);
       if (response.data.success) {
         addNotification({
           title: 'Berhasil',
@@ -244,7 +244,7 @@ const SavingsVerification: React.FC = () => {
 
     for (const saving of filteredSavings) {
       try {
-        await axiosInstance.put(`/savings/${saving.id}/verify`);
+        await axiosInstance.put(`/api/savings/${saving.id}/verify`);
         successCount++;
       } catch (error) {
         failCount++;

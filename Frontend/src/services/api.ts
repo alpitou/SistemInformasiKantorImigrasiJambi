@@ -14,7 +14,6 @@ const api = axios.create({
     'Accept': 'application/json',
   },
   timeout: 30000,
-  // Tidak perlu withCredentials karena pakai proxy
 });
 
 const apiClient = axios.create({
@@ -47,6 +46,7 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    config.headers.Accept = 'application/json';
     console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },

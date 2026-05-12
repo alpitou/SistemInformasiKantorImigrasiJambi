@@ -328,7 +328,7 @@ const AdminDashboard: React.FC = () => {
                 <Tooltip
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
                   itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-                  formatter={(value: number) => [`Rp ${value.toLocaleString('id-ID')}`, '']}
+                  formatter={(value: number | undefined) => value !== undefined ? [`Rp ${value.toLocaleString('id-ID')}`, ''] : ['', '']}
                 />
                 <Area type="monotone" dataKey="simpanan" stroke="#002855" strokeWidth={3} fillOpacity={1} fill="url(#colorSimpanan)" />
                 <Area type="monotone" dataKey="pinjaman" stroke="#C5A059" strokeWidth={3} fillOpacity={1} fill="url(#colorPinjaman)" />
