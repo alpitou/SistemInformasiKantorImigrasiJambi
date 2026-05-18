@@ -550,9 +550,27 @@ class SavingController extends Controller
                 $memberSavings = [];
 
                 foreach ($savingTypes as $type) {
-                    $balance = $this->getBalance($member->id, $type->id);
+                    $balance = Saving::select(
+                        'user_id',
+                        'saving_type_id',
+                        DB::raw("
+            COALESCE(SUM(
+                CASE
+                    WHEN transaction_type = 'deposit' THEN amount
+                    ELSE -amount
+                END
+            ),0) as balance
+        ")
+                    )
+                        ->where(function ($q) {
+                            $q->where('verification_status', 'verified')
+                                ->orWhere('transaction_type', 'withdrawal');
+                        })
+                        ->groupBy('user_id', 'saving_type_id')
+                        ->get()
+                        ->groupBy('user_id');
                     $isProcessed = false;
-                    
+
                     if ($alreadyProcessed && $existingDeductions->has($member->id)) {
                         $isProcessed = $existingDeductions[$member->id]->contains(function ($s) use ($type) {
                             return $s->saving_type_id == $type->id;
@@ -889,10 +907,18 @@ class SavingController extends Controller
             }
 
             $monthNames = [
-                '01' => 'Januari', '02' => 'Februari', '03' => 'Maret',
-                '04' => 'April', '05' => 'Mei', '06' => 'Juni',
-                '07' => 'Juli', '08' => 'Agustus', '09' => 'September',
-                '10' => 'Oktober', '11' => 'November', '12' => 'Desember'
+                '01' => 'Januari',
+                '02' => 'Februari',
+                '03' => 'Maret',
+                '04' => 'April',
+                '05' => 'Mei',
+                '06' => 'Juni',
+                '07' => 'Juli',
+                '08' => 'Agustus',
+                '09' => 'September',
+                '10' => 'Oktober',
+                '11' => 'November',
+                '12' => 'Desember'
             ];
 
             $fileName = "payroll_{$monthNames[$monthNum]}_{$year}.csv";
@@ -901,7 +927,7 @@ class SavingController extends Controller
             fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
             fputcsv($handle, ['NO', 'NAMA', 'NIP/NIK', 'UNIT', 'POKOK', 'WAJIB', 'PINJAMAN', 'TOTAL']);
-            
+
             $no = 1;
             foreach ($deductions as $item) {
                 fputcsv($handle, [
@@ -915,7 +941,7 @@ class SavingController extends Controller
                     number_format($item['total'], 0, ',', '.')
                 ]);
             }
-            
+
             fputcsv($handle, []);
             fputcsv($handle, ['TOTAL KESELURUHAN', '', '', '', '', '', '', number_format($totalAll, 0, ',', '.')]);
 

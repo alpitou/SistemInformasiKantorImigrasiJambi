@@ -5,10 +5,11 @@ import {
   HandCoins, TrendingUp, Calendar, RefreshCw, CheckCircle2, Clock,
   AlertCircle, X, Eye, FileText, Wallet, Building2, CreditCard,
   User, Loader2, Search, Filter, DollarSign, MessageSquare,
-  Check, Ban, Send, ChevronDown, ChevronUp, Info
+  Check, Ban, Send, ChevronDown, ChevronUp, Info, Plus
 } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications';
 import api from '../../services/api';
+import { useAuth } from '../../hooks/useAuth'; // perbaiki path
 
 interface WithdrawalRequest {
   id: number;
@@ -69,24 +70,58 @@ const WithdrawalApprovals: React.FC = () => {
   const [showDisburseModal, setShowDisburseModal] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
+  // State untuk modal create
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [membersList, setMembersList] = useState<any[]>([]);
+  const [selectedMember, setSelectedMember] = useState<any>(null);
+  const [newWithdraw, setNewWithdraw] = useState({
+    user_id: '',
+    saving_type: 'Sukarela',
+    amount: '',
+    reason: '',
+    bank_name: '',
+    account_number: '',
+    account_name: ''
+  });
+  const [isCreating, setIsCreating] = useState(false);
+
+  const { user } = useAuth();
+  const userRole = user?.role?.name || '';
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('id-ID', {
       day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
   };
 
+  // Fetch daftar anggota
+  const fetchMembers = useCallback(async () => {
+    try {
+      const response = await api.get('/users', { params: { role: 'anggota', per_page: 100 } });
+      if (response.data.success) {
+        const data = response.data.data.data || response.data.data;
+        setMembersList(data);
+      } else {
+        setMembersList([]);
+      }
+    } catch (error) {
+      console.error('Error fetching members:', error);
+      setMembersList([]);
+    }
+  }, []);
+
+  // Fetch daftar pengajuan
   const fetchRequests = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await api.get('/withdrawals');
       if (response.data.success) {
         setRequests(response.data.data);
-        console.log('Withdrawal requests loaded:', response.data.data);
       }
     } catch (error) {
       addNotification({ title: 'Gagal', message: 'Gagal mengambil data pengajuan penarikan', type: 'error' });
@@ -117,6 +152,73 @@ const WithdrawalApprovals: React.FC = () => {
     setFilteredRequests(filtered);
   }, [searchTerm, statusFilter, requests]);
 
+  // Handler untuk create withdrawal
+  const handleCreateWithdrawal = async () => {
+    if (!newWithdraw.user_id || !newWithdraw.amount || !newWithdraw.reason) {
+      addNotification({ title: 'Validasi', message: 'Harap isi semua field yang diperlukan', type: 'error' });
+      return;
+    }
+    setIsCreating(true);
+    try {
+      const response = await api.post('/withdrawals', {
+        user_id: newWithdraw.user_id,
+        amount: parseFloat(newWithdraw.amount),
+        reason: newWithdraw.reason,
+        saving_type: newWithdraw.saving_type,
+        bank_name: newWithdraw.bank_name,
+        account_number: newWithdraw.account_number,
+        account_name: newWithdraw.account_name
+      });
+      if (response.data.success) {
+        addNotification({ title: 'Berhasil', message: 'Penarikan berhasil dibuat, siap dicairkan bendahara', type: 'success' });
+        setShowCreateModal(false);
+        resetCreateForm();
+        fetchRequests();
+        fetchStats();
+      }
+    } catch (error: any) {
+      addNotification({ title: 'Gagal', message: error.response?.data?.message || 'Gagal membuat penarikan', type: 'error' });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const resetCreateForm = () => {
+    setNewWithdraw({
+      user_id: '',
+      saving_type: 'Sukarela',
+      amount: '',
+      reason: '',
+      bank_name: '',
+      account_number: '',
+      account_name: ''
+    });
+    setSelectedMember(null);
+  };
+
+  const handleMemberSelect = (userId: string) => {
+    const member = membersList.find(m => m.id == userId);
+    if (member) {
+      setSelectedMember(member);
+      setNewWithdraw(prev => ({
+        ...prev,
+        user_id: member.id,
+        bank_name: member.bank_name || '',
+        account_number: member.account_number || '',
+        account_name: member.account_name || member.name
+      }));
+    } else {
+      setSelectedMember(null);
+      setNewWithdraw(prev => ({ ...prev, user_id: '', bank_name: '', account_number: '', account_name: '' }));
+    }
+  };
+
+  const openCreateModal = () => {
+    fetchMembers();
+    setShowCreateModal(true);
+  };
+
+  // Handler approve, reject, disburse (tidak berubah)
   const handleApprove = async (id: number, role: 'treasurer' | 'chairman') => {
     if (!window.confirm(`Apakah Anda yakin ingin menyetujui penarikan ini?`)) return;
     setIsLoading(true);
@@ -156,21 +258,13 @@ const WithdrawalApprovals: React.FC = () => {
       addNotification({ title: 'Error', message: 'Tidak ada data penarikan yang dipilih', type: 'error' });
       return;
     }
-
+    console.log('Disburse request:', { id: selectedRequest.id, notes: disbursementNotes });
+    
     setIsLoading(true);
     try {
-      const response = await api.post(`/withdrawals/${selectedRequest.id}/disburse`, {
-        notes: disbursementNotes
-      });
-
-      console.log('Disburse response:', response.data);
-
+      const response = await api.post(`/withdrawals/${selectedRequest.id}/disburse`, { notes: disbursementNotes });
       if (response.data.success) {
-        addNotification({
-          title: 'Berhasil',
-          message: response.data.message || 'Dana berhasil dicairkan',
-          type: 'success'
-        });
+        addNotification({ title: 'Berhasil', message: response.data.message || 'Dana berhasil dicairkan', type: 'success' });
         setDisbursementNotes('');
         setShowDisburseModal(false);
         setSelectedRequest(null);
@@ -178,19 +272,11 @@ const WithdrawalApprovals: React.FC = () => {
         await fetchRequests();
         await fetchStats();
       } else {
-        addNotification({
-          title: 'Gagal',
-          message: response.data.message || 'Gagal melakukan pencairan',
-          type: 'error'
-        });
+        addNotification({ title: 'Gagal', message: response.data.message || 'Gagal melakukan pencairan', type: 'error' });
       }
     } catch (error: any) {
       console.error('Disburse error:', error);
-      addNotification({
-        title: 'Gagal',
-        message: error.response?.data?.message || 'Terjadi kesalahan saat mencairkan dana',
-        type: 'error'
-      });
+      addNotification({ title: 'Gagal', message: error.response?.data?.message || 'Terjadi kesalahan saat mencairkan dana', type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -222,10 +308,10 @@ const WithdrawalApprovals: React.FC = () => {
 
   const getActionButtons = (request: WithdrawalRequest) => {
     const userStr = localStorage.getItem('user');
-    let userRole = '';
-    try { const parsed = userStr ? JSON.parse(userStr) : null; userRole = parsed?.role?.name || ''; } catch { userRole = ''; }
+    let userRoleLocal = '';
+    try { const parsed = userStr ? JSON.parse(userStr) : null; userRoleLocal = parsed?.role?.name || ''; } catch { userRoleLocal = ''; }
 
-    if (userRole === 'bendahara') {
+    if (userRoleLocal === 'bendahara') {
       if (request.status === 'pending_treasurer') {
         return (
           <div className="flex gap-2">
@@ -252,7 +338,7 @@ const WithdrawalApprovals: React.FC = () => {
       }
     }
 
-    if (userRole === 'ketua' && request.status === 'pending_chairman') {
+    if (userRoleLocal === 'ketua' && request.status === 'pending_chairman') {
       return (
         <div className="flex gap-2">
           <button onClick={() => { setSelectedRequest(request); setShowDetailModal(true); }} className="px-3 py-1.5 text-blue-600 bg-blue-50 rounded-lg text-xs font-medium hover:bg-blue-100">
@@ -283,9 +369,20 @@ const WithdrawalApprovals: React.FC = () => {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Kelola pengajuan penarikan simpanan anggota dengan workflow berjenjang</p>
         </div>
-        <button onClick={() => { fetchRequests(); fetchStats(); }} disabled={isLoading} className="p-3 bg-white dark:bg-neutral-800 border rounded-xl text-gray-500 hover:text-imigrasi-primary">
-          <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-3">
+          {userRole === 'ketua' && (
+            <button
+              onClick={openCreateModal}
+              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all flex items-center gap-2"
+            >
+              <Plus size={18} />
+              Buat Penarikan Baru
+            </button>
+          )}
+          <button onClick={() => { fetchRequests(); fetchStats(); }} disabled={isLoading} className="p-3 bg-white dark:bg-neutral-800 border rounded-xl text-gray-500 hover:text-imigrasi-primary">
+            <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -325,13 +422,9 @@ const WithdrawalApprovals: React.FC = () => {
           <div>
             <h4 className="font-bold text-blue-900 text-sm">Workflow Persetujuan Penarikan</h4>
             <div className="flex items-center gap-2 mt-1 text-xs text-blue-700">
-              <span className="px-2 py-0.5 bg-amber-200 rounded-full">1. Pengajuan Anggota</span>
+              <span className="px-2 py-0.5 bg-amber-200 rounded-full">1. Pengajuan Ketua</span>
               <span>→</span>
-              <span className="px-2 py-0.5 bg-blue-200 rounded-full">2. Verifikasi Bendahara</span>
-              <span>→</span>
-              <span className="px-2 py-0.5 bg-purple-200 rounded-full">3. Persetujuan Ketua</span>
-              <span>→</span>
-              <span className="px-2 py-0.5 bg-emerald-200 rounded-full">4. Pencairan Dana</span>
+              <span className="px-2 py-0.5 bg-blue-200 rounded-full">2. Pencairan Dana dari Bendahara</span>
             </div>
           </div>
         </div>
@@ -349,7 +442,6 @@ const WithdrawalApprovals: React.FC = () => {
             className="w-full pl-11 pr-4 py-3 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl focus:border-imigrasi-primary outline-none transition-colors dark:text-white"
           />
         </div>
-
         <div className="flex items-center gap-2">
           <Filter size={16} className="text-gray-400" />
           <select
@@ -367,7 +459,7 @@ const WithdrawalApprovals: React.FC = () => {
         </div>
       </div>
 
-      {/* Requests Table */}
+      {/* Requests Table (sama seperti sebelumnya, tidak diubah) */}
       <div className="w-full">
         <div className="glass-card p-12 rounded-3xl">
           <div className="mb-8">
@@ -476,7 +568,7 @@ const WithdrawalApprovals: React.FC = () => {
         </div>
       </div>
 
-      {/* Detail Modal */}
+      {/* Detail Modal (sama seperti sebelumnya) */}
       <AnimatePresence>
         {showDetailModal && selectedRequest && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -506,7 +598,6 @@ const WithdrawalApprovals: React.FC = () => {
                     <div><p className="text-gray-500">Tanggal Pengajuan</p><p>{formatDate(selectedRequest.created_at)}</p></div>
                   </div>
                 </div>
-
                 {/* Informasi Penarikan */}
                 <div className="p-4 bg-amber-50 rounded-xl">
                   <h4 className="font-bold text-amber-900 mb-3">Informasi Penarikan</h4>
@@ -516,7 +607,6 @@ const WithdrawalApprovals: React.FC = () => {
                     <div><p>Alasan</p><p>{selectedRequest.reason}</p></div>
                   </div>
                 </div>
-
                 {/* Informasi Rekening Tujuan */}
                 <div className="p-4 bg-blue-50 rounded-xl">
                   <h4 className="font-bold text-blue-900 mb-3">Rekening Tujuan</h4>
@@ -526,7 +616,6 @@ const WithdrawalApprovals: React.FC = () => {
                     <div className="col-span-2"><p className="text-gray-500">Pemilik</p><p>{selectedRequest.account_name}</p></div>
                   </div>
                 </div>
-
                 {/* Approval Actions */}
                 <div className="space-y-3">
                   {selectedRequest.status === 'pending_treasurer' && (
@@ -617,7 +706,135 @@ const WithdrawalApprovals: React.FC = () => {
           </div>
         </div>
       </div>
-    </motion.div >
+
+      {/* Modal Buat Penarikan Baru (tambahkan di sini) */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+            >
+              <div className="sticky top-0 p-5 border-b bg-gradient-to-r from-imigrasi-primary to-blue-800 text-white">
+                <h3 className="font-bold text-lg">Buat Penarikan untuk Anggota</h3>
+                <button onClick={() => setShowCreateModal(false)} className="absolute right-4 top-4 p-1 hover:bg-white/10 rounded-full">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {/* Pilih Anggota */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Pilih Anggota</label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-imigrasi-primary"
+                    value={newWithdraw.user_id}
+                    onChange={(e) => handleMemberSelect(e.target.value)}
+                  >
+                    <option value="">-- Pilih Anggota --</option>
+                    {membersList.map(member => (
+                      <option key={member.id} value={member.id}>
+                        {member.name} - {member.nip || member.nik}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Jenis Simpanan */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Jenis Simpanan</label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={newWithdraw.saving_type}
+                    onChange={(e) => setNewWithdraw({ ...newWithdraw, saving_type: e.target.value })}
+                  >
+                    <option value="Pokok">Pokok</option>
+                    <option value="Wajib">Wajib</option>
+                    <option value="Sukarela">Sukarela</option>
+                  </select>
+                </div>
+
+                {/* Jumlah */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Jumlah Penarikan (Rp)</label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="Contoh: 500000"
+                    value={newWithdraw.amount}
+                    onChange={(e) => setNewWithdraw({ ...newWithdraw, amount: e.target.value })}
+                  />
+                </div>
+
+                {/* Alasan */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Alasan Penarikan</label>
+                  <textarea
+                    rows={2}
+                    className="w-full px-3 py-2 border rounded-lg resize-none"
+                    placeholder="Alasan penarikan..."
+                    value={newWithdraw.reason}
+                    onChange={(e) => setNewWithdraw({ ...newWithdraw, reason: e.target.value })}
+                  />
+                </div>
+
+                {/* Rekening Tujuan */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Bank Tujuan</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="Nama Bank"
+                    value={newWithdraw.bank_name}
+                    onChange={(e) => setNewWithdraw({ ...newWithdraw, bank_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Nomor Rekening</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="Nomor Rekening"
+                    value={newWithdraw.account_number}
+                    onChange={(e) => setNewWithdraw({ ...newWithdraw, account_number: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Nama Pemilik Rekening</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="Nama sesuai rekening"
+                    value={newWithdraw.account_name}
+                    onChange={(e) => setNewWithdraw({ ...newWithdraw, account_name: e.target.value })}
+                  />
+                </div>
+
+                {/* Tombol Aksi */}
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="flex-1 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleCreateWithdrawal}
+                    disabled={isCreating}
+                    className="flex-1 py-2 bg-imigrasi-primary text-white rounded-lg hover:bg-blue-900 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isCreating ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    Simpan
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 

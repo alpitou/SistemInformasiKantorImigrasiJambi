@@ -116,7 +116,16 @@ class WithdrawalController extends Controller
         try {
             $user = $request->user();
 
+            if (!in_array($user->role->name, ['ketua', 'admin'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Hanya Ketua atau Admin yang dapat membuat pengajuan penarikan.',
+                    'data' => null
+                ], 403);
+            }
+
             $request->validate([
+                'user_id' => 'required|exists:users,id',
                 'amount' => 'required|numeric|min:1',
                 'reason' => 'required|string',
                 'saving_type' => 'required|in:Pokok,Wajib,Sukarela',
@@ -125,26 +134,11 @@ class WithdrawalController extends Controller
                 'account_name' => 'required|string'
             ]);
 
-            // Check balance
-            $balance = $this->getBalance($user->id, $request->saving_type);
-
+            $balance = $this->getBalance($request->user_id, $request->saving_type);
             if ($request->amount > $balance) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Saldo Simpanan {$request->saving_type} tidak mencukupi. Tersedia: Rp " . number_format($balance, 0, ',', '.'),
-                    'data' => null
-                ], 400);
-            }
-
-            // Check if there's already a pending request
-            $pendingExists = WithdrawalRequest::where('user_id', $user->id)
-                ->whereIn('status', ['pending_treasurer', 'pending_chairman', 'approved'])
-                ->exists();
-
-            if ($pendingExists) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Anda masih memiliki pengajuan penarikan yang sedang diproses. Silakan tunggu hingga selesai.',
+                    'message' => "Saldo Simpanan {$request->saving_type} anggota tidak mencukupi. Tersedia: Rp " . number_format($balance, 0, ',', '.'),
                     'data' => null
                 ], 400);
             }
@@ -152,23 +146,24 @@ class WithdrawalController extends Controller
             DB::beginTransaction();
 
             $withdrawal = WithdrawalRequest::create([
-                'user_id' => $user->id,
+                'user_id' => $request->user_id,
                 'saving_type' => $request->saving_type,
                 'amount' => $request->amount,
                 'reason' => $request->reason,
                 'bank_name' => $request->bank_name,
                 'account_number' => $request->account_number,
                 'account_name' => $request->account_name,
-                'status' => 'pending_treasurer'
+                'status' => 'approved'   // langsung siap cair
             ]);
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pengajuan penarikan berhasil dikirim. Menunggu verifikasi bendahara.',
+                'message' => 'Pengajuan penarikan berhasil dibuat. Silakan bendahara melakukan pencairan.',
                 'data' => $withdrawal->load('user')
             ], 201);
+
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error creating withdrawal: ' . $e->getMessage());
@@ -392,6 +387,7 @@ class WithdrawalController extends Controller
     {
         try {
             $user = request()->user();
+            Log::info('Disburse attempt', ['user_id' => $user->id, 'withdrawal_id' => $id]);
 
             if (!in_array($user->role->name, ['bendahara', 'admin'])) {
                 return response()->json([
@@ -405,10 +401,12 @@ class WithdrawalController extends Controller
 
             $withdrawal = WithdrawalRequest::findOrFail($id);
 
+            Log::info('Withdrawal found', ['status' => $withdrawal->status]);
+
             if ($withdrawal->status !== 'approved') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Pengajuan tidak dapat dicairkan pada tahap ini. Status saat ini: ' . $withdrawal->status,
+                    'message' => 'Pengajuan tidak dapat dicairkan. Status saat ini: ' . $withdrawal->status,
                     'data' => null
                 ], 422);
             }
@@ -428,7 +426,9 @@ class WithdrawalController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error disbursing funds: ' . $e->getMessage());
+            Log::error('Error disbursing funds: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal mencairkan dana: ' . $e->getMessage(),

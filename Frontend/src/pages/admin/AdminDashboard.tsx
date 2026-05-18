@@ -217,7 +217,7 @@ const AdminDashboard: React.FC = () => {
   ];
 
   const displayQuickLinks = quickLinks.length > 0 ? quickLinks : [
-    { title: 'Verifikasi & Persetujuan', description: '12 antrean menunggu', icon: 'ShieldCheck', icon_color: 'bg-blue-100 text-blue-600', route: '/admin/approvals', badge: 12 },
+    { title: 'Verifikasi & Persetujuan', description: '0 antrean menunggu', icon: 'ShieldCheck', icon_color: 'bg-blue-100 text-blue-600', route: '/admin/approvals' },
     { title: 'Manajemen Keuangan', description: 'Update kas & simpanan', icon: 'Wallet', icon_color: 'bg-emerald-100 text-emerald-600', route: '/admin/finance', badge: null },
     { title: 'Data Anggota', description: 'Kelola database anggota', icon: 'Users', icon_color: 'bg-purple-100 text-purple-600', route: '/admin/members', badge: null },
     { title: 'Laporan Keuangan', description: 'Generate laporan berkala', icon: 'FileText', icon_color: 'bg-amber-100 text-amber-600', route: '/admin/reports', badge: null },
